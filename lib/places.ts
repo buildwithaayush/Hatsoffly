@@ -99,6 +99,7 @@ export async function placeDetails(placeId: string): Promise<PlaceDetails | null
     };
   }
 
+  /** Field names valid for legacy Place Details — do not include `utc_offset_minutes`; Google rejects it on many projects now. Timezone uses lat/lng + tzlookup instead. */
   const fields = [
     "place_id",
     "name",
@@ -107,7 +108,6 @@ export async function placeDetails(placeId: string): Promise<PlaceDetails | null
     "geometry",
     "type",
     "international_phone_number",
-    "utc_offset_minutes",
     "business_status",
     "url",
   ].join(",");
@@ -128,7 +128,6 @@ export async function placeDetails(placeId: string): Promise<PlaceDetails | null
       geometry?: { location?: { lat: number; lng: number } };
       types?: string[];
       international_phone_number?: string;
-      utc_offset_minutes?: number;
     };
   };
 
@@ -157,7 +156,7 @@ export async function placeDetails(placeId: string): Promise<PlaceDetails | null
     primary_type: primary,
     google_review_url: `https://search.google.com/local/writereview?placeid=${encodeURIComponent(placeId)}`,
     international_phone_number: r.international_phone_number ?? null,
-    utc_offset_minutes: r.utc_offset_minutes ?? null,
+    utc_offset_minutes: null,
     timezone: tz,
   };
 }
