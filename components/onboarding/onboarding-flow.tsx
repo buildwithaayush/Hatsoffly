@@ -48,6 +48,8 @@ export function OnboardingFlow() {
   const [manualZip, setManualZip] = useState("");
   const [typingHelp, setTypingHelp] = useState(false);
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
+  const [placesError, setPlacesError] = useState<string | null>(null);
+  const [placesEmptyHint, setPlacesEmptyHint] = useState(false);
 
   const [pendingToken, setPendingToken] = useState("");
   const [phoneMasked, setPhoneMasked] = useState("");
@@ -71,6 +73,8 @@ export function OnboardingFlow() {
     if (!query.trim() || manualMode) {
       setPredictions([]);
       setOpenPlaces(false);
+      setPlacesError(null);
+      setPlacesEmptyHint(false);
       return;
     }
     /** After user picks a place, query matches the label — don’t refetch or reopen the dropdown. */
@@ -93,13 +97,23 @@ export function OnboardingFlow() {
         if (!res.ok) {
           setPredictions([]);
           setOpenPlaces(false);
+          setPlacesEmptyHint(false);
+          setPlacesError(
+            data?.error?.message ??
+              "Business search failed. For Google Cloud keys used on Vercel, set Application restriction to “None” (server has no browser referrer), and restrict by API = Places API only.",
+          );
           return;
         }
-        setPredictions(data.predictions ?? []);
-        setOpenPlaces(true);
+        const list = data.predictions ?? [];
+        setPlacesError(null);
+        setPredictions(list);
+        setPlacesEmptyHint(query.trim().length >= 2 && list.length === 0);
+        setOpenPlaces(list.length > 0);
       } catch {
         setPredictions([]);
         setOpenPlaces(false);
+        setPlacesEmptyHint(false);
+        setPlacesError("Could not reach business search. Check your connection.");
       }
     }, 220);
     return () => clearTimeout(t);
@@ -683,6 +697,8 @@ export function OnboardingFlow() {
                 onChange={(e) => {
                   setSelectedPlaceId(null);
                   setSelectedDescription("");
+                  setPlacesError(null);
+                  setPlacesEmptyHint(false);
                   setQuery(e.target.value);
                 }}
                 onFocus={() => {
@@ -693,6 +709,16 @@ export function OnboardingFlow() {
                 }}
                 onBlur={syncPlaceSelection}
               />
+              {placesError && (
+                <p className="mt-2 text-sm text-red-700" role="alert">
+                  {placesError}
+                </p>
+              )}
+              {placesEmptyHint && !placesError && (
+                <p className="mt-2 text-sm text-slate-600" role="status">
+                  No matches for that search — try a nearby city or business name, or use manual address.
+                </p>
+              )}
               <button
                 type="button"
                 className="mt-2 text-sm font-semibold text-brand-700 underline-offset-4 hover:underline"

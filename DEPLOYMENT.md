@@ -87,6 +87,8 @@ Copy from `.env.example`; minimum:
 
 With **`MOCK_INTEGRATIONS=0`**, choosing a business from search requires this key. **Manual address** signup still works without Maps.
 
+**Autocomplete empty on Vercel but works locally?** Your API key is used **on the server** (not in the browser). Do **not** use **HTTP referrer** restrictions on this key — Google will reject requests from Vercel. Use **Application restriction: None** and **API restriction: Places API** (tighten later with a separate server key strategy if needed).
+
 ### Twilio
 
 1. [Twilio Console](https://console.twilio.com/) → **Develop** → **Verify** → **Services** → create a service → copy **`TWILIO_VERIFY_SERVICE_SID`**.
