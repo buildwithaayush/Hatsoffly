@@ -314,6 +314,7 @@ export function OnboardingFlow() {
         body: JSON.stringify(body),
       });
 
+      const raw = await res.text();
       let data: {
         pending_verification_token?: string;
         phone_masked?: string;
@@ -321,12 +322,10 @@ export function OnboardingFlow() {
         error?: { message?: string };
       };
       try {
-        data = (await res.json()) as typeof data;
+        data = JSON.parse(raw) as typeof data;
       } catch {
         setTopError(
-          res.status >= 500
-            ? "Server error — if this persists, confirm Postgres DATABASE_URL and migrations on your host."
-            : "Unexpected response from server.",
+          `Server returned a non-JSON response (${res.status}). Usually: missing DATABASE_URL on this Vercel environment, or the deployment crashed — check Vercel → Logs.`,
         );
         return;
       }

@@ -68,7 +68,7 @@ function firstToken(name: string) {
   return t || name;
 }
 
-export async function POST(req: NextRequest) {
+async function signupHandler(req: NextRequest) {
   const ip = clientIp(req);
   const rlIp = rateLimitHit("signup:ip", ip, 5, 60 * 60 * 1000);
   if (!rlIp.ok) {
@@ -344,4 +344,29 @@ export async function POST(req: NextRequest) {
     },
     { status: 202 },
   );
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    return await signupHandler(req);
+  } catch (e: unknown) {
+    console.error("[signup]", e);
+    const prismaCode =
+      typeof e === "object" && e !== null && "code" in e
+        ? String((e as { code: unknown }).code)
+        : "";
+    const errMsg = e instanceof Error ? e.message : "";
+    const dbLikely =
+      prismaCode.startsWith("P") ||
+      /P1001|P1017|connect|ECONNREFUSED|database|timeout|PrismaClient|Can't reach database/i.test(
+        errMsg,
+      );
+    return jsonError(
+      "server_error",
+      dbLikely
+        ? "Database unreachable — open Vercel → Settings → Environment Variables and set DATABASE_URL for this environment (Preview uses Preview vars; Production uses Production vars). Then redeploy."
+        : "Signup failed unexpectedly. Try again.",
+      503,
+    );
+  }
 }
