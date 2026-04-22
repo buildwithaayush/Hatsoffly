@@ -1,4 +1,4 @@
-import { autocompletePlaces } from "@/lib/places";
+import { autocompletePlaces, PlacesApiError } from "@/lib/places";
 import { jsonError, jsonOk } from "@/lib/api-envelope";
 import type { NextRequest } from "next/server";
 
@@ -13,7 +13,13 @@ export async function GET(req: NextRequest) {
   try {
     const predictions = await autocompletePlaces(q, session);
     return jsonOk({ predictions });
-  } catch {
+  } catch (e) {
+    if (e instanceof PlacesApiError) {
+      const hint =
+        e.googleMessage ??
+        "Enable Places API + billing on Google Cloud and verify GOOGLE_MAPS_API_KEY restrictions.";
+      return jsonError("places_unavailable", hint, 503);
+    }
     return jsonError("places_unavailable", "Business search is temporarily unavailable.", 503);
   }
 }

@@ -10,6 +10,12 @@ import { industryToTemplateVoice, primaryTypeToIndustry } from "@/lib/industry";
 import { twilioLookupLineType, verifyStartSms } from "@/lib/twilio";
 import { newPendingVerificationToken } from "@/lib/token";
 import { isMockIntegrations } from "@/lib/env";
+import {
+  assertProductionSmsOrExplain,
+  googleMapsConfigured,
+  requiresGoogleMapsForSignup,
+} from "@/lib/integration-config";
+import { PlacesApiError } from "@/lib/places";
 import { BusinessRole } from "@prisma/client";
 
 export const runtime = "nodejs";
@@ -120,6 +126,23 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const smsMisconfig = assertProductionSmsOrExplain();
+  if (smsMisconfig) {
+    return jsonError("integrations_not_configured", smsMisconfig, 503);
+  }
+
+  if (
+    !isMockIntegrations() &&
+    requiresGoogleMapsForSignup(data.place_id ?? undefined) &&
+    !googleMapsConfigured()
+  ) {
+    return jsonError(
+      "maps_not_configured",
+      "Add GOOGLE_MAPS_API_KEY for business search, or use manual address instead.",
+      503,
+    );
+  }
+
   let locationPayload: {
     name: string;
     googlePlaceId: string | null;
@@ -174,7 +197,13 @@ export async function POST(req: NextRequest) {
         needsGbpAssistance: !reviewUrl,
         industryPrimaryType: details.primary_type,
       };
-    } catch {
+    } catch (e) {
+      if (e instanceof PlacesApiError) {
+        const hint =
+          e.googleMessage ??
+          `Google Places error (${e.googleStatus ?? "unknown"}). Enable Places API, billing, and check API key restrictions.`;
+        return jsonError("places_unavailable", hint, 422);
+      }
       return jsonError(
         "places_unavailable",
         "Business search is down — enter your address manually.",

@@ -3,7 +3,11 @@ import { z } from "zod";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { jsonError, jsonOk } from "@/lib/api-envelope";
-import { verifyCheckCode, sendTestSms } from "@/lib/twilio";
+import {
+  verifyCheckCode,
+  sendTestSms,
+  TWILIO_MESSAGING_NOT_CONFIGURED,
+} from "@/lib/twilio";
 import { signSessionToken, SESSION_COOKIE } from "@/lib/auth";
 import { rateLimitHit } from "@/lib/rate-limit";
 import { isMockIntegrations } from "@/lib/env";
@@ -110,37 +114,46 @@ export async function POST(req: NextRequest) {
 
   let testSmsSid = "SM_MOCK";
 
-  await prisma.$transaction(async (tx) => {
-    const previewToken = newPreviewToken();
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  try {
+    await prisma.$transaction(async (tx) => {
+      const previewToken = newPreviewToken();
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
-    await tx.previewLink.create({
-      data: {
-        token: previewToken,
-        businessId: business.id,
-        googleReviewUrl: primaryLoc?.googleReviewUrl,
-        businessName: business.name,
+      await tx.previewLink.create({
+        data: {
+          token: previewToken,
+          businessId: business.id,
+          googleReviewUrl: primaryLoc?.googleReviewUrl,
+          businessName: business.name,
+          firstName: firstToken(user.fullName),
+          expiresAt,
+        },
+      });
+
+      const smsResult = await sendTestSms({
+        toE164: user.phoneE164,
         firstName: firstToken(user.fullName),
-        expiresAt,
-      },
-    });
+        businessName: business.name,
+        previewPathToken: previewToken,
+        voice: business.templateVoice,
+      });
+      testSmsSid = smsResult.sid;
 
-    const smsResult = await sendTestSms({
-      toE164: user.phoneE164,
-      firstName: firstToken(user.fullName),
-      businessName: business.name,
-      previewPathToken: previewToken,
-      voice: business.templateVoice,
-    });
-    testSmsSid = smsResult.sid;
+      await tx.user.update({
+        where: { id: user.id },
+        data: { phoneVerifiedAt: new Date(), lastLoginAt: new Date() },
+      });
 
-    await tx.user.update({
-      where: { id: user.id },
-      data: { phoneVerifiedAt: new Date(), lastLoginAt: new Date() },
+      await tx.pendingVerification.delete({ where: { id: pvt } });
     });
-
-    await tx.pendingVerification.delete({ where: { id: pvt } });
-  });
+  } catch (e) {
+    console.error("[verify]", e);
+    const msg =
+      e instanceof Error && e.message === TWILIO_MESSAGING_NOT_CONFIGURED
+        ? "Outbound SMS is not configured. Set TWILIO_MESSAGING_FROM to your Twilio SMS-capable number (E.164)."
+        : "Could not finish verification or send the test SMS. Try again.";
+    return jsonError("twilio_unavailable", msg, 503);
+  }
 
   const token = await signSessionToken({
     sub: user.id,

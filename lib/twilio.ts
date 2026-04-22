@@ -1,6 +1,10 @@
 import { isMockIntegrations, appUrl } from "./env";
 import type { TemplateVoice } from "@prisma/client";
+
 const MOCK_SID = "SM_MOCK_SID";
+
+/** Outbound Messaging not configured — verify route surfaces this to the client. */
+export const TWILIO_MESSAGING_NOT_CONFIGURED = "TWILIO_MESSAGING_NOT_CONFIGURED";
 
 export async function twilioLookupLineType(_e164: string): Promise<
   "mobile" | "voip" | "unknown" | "landline"
@@ -110,9 +114,7 @@ export async function sendTestSms(opts: {
   const token = process.env.TWILIO_AUTH_TOKEN;
   const from = process.env.TWILIO_MESSAGING_FROM;
   if (!accountSid || !token || !from) {
-    console.warn("Twilio messaging not configured; logging SMS only.");
-    console.info("[SMS to %s]\n%s", opts.toE164, message);
-    return { sid: MOCK_SID };
+    throw new Error(TWILIO_MESSAGING_NOT_CONFIGURED);
   }
 
   const body = new URLSearchParams({

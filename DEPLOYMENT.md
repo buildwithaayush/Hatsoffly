@@ -23,10 +23,10 @@ The MVP used SQLite locally; **SQLite does not work on Vercel’s serverless fil
 1. `cp .env.example .env`
 2. Create a **Postgres** database (Neon free tier is fine) and paste `DATABASE_URL`.
 3. Set `JWT_SECRET` (long random string).
-3. Keep `NEXT_PUBLIC_APP_ENV=local` and either:
+4. Keep `NEXT_PUBLIC_APP_ENV=local` and either:
    - leave `MOCK_INTEGRATIONS=1` (or omit it — **local tier defaults to mocks**), verification code **`123456`**, or
    - set `MOCK_INTEGRATIONS=0` and add real **Twilio** + **Google Maps** keys below.
-4. `npm install && npm run db:push && npm run dev`  
+5. `npm install && npm run db:push && npm run dev`  
    (`db:push` syncs schema; production uses `prisma migrate deploy` during `npm run build`.)
 
 ---
@@ -37,11 +37,11 @@ Copy from `.env.example`; minimum:
 
 - **`NEXT_PUBLIC_APP_URL`** — Canonical site URL (SMS deep links, metadata). Must match the deployed host in non-local tiers.
 - **`NEXT_PUBLIC_APP_ENV`** — `local` \| `development` \| `production`.
-- **`DATABASE_URL`** — SQLite locally; Postgres for preview/production.
+- **`DATABASE_URL`** — PostgreSQL everywhere (local dev + Vercel).
 - **`JWT_SECRET`** — Required for auth tokens.
 - **`MOCK_INTEGRATIONS`** — `1` = mock Twilio/SMS (`MOCK_VERIFY_CODE`, default `123456`). **`0`** = real APIs. If **unset**, only **local** tier uses mocks.
-- **`GOOGLE_MAPS_API_KEY`** — Places Autocomplete + Details (billing enabled, Places API on).
-- **Twilio** — `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_VERIFY_SERVICE_SID`; optional `TWILIO_MESSAGING_FROM` for outbound SMS.
+- **`GOOGLE_MAPS_API_KEY`** — Places Autocomplete + Details (billing enabled, enable **Places API**, restrict key).
+- **Twilio** — **`TWILIO_ACCOUNT_SID`**, **`TWILIO_AUTH_TOKEN`**, **`TWILIO_VERIFY_SERVICE_SID`** (Verify SMS codes). **`TWILIO_MESSAGING_FROM`** — SMS-capable **From** number (E.164, e.g. `+15551234567`) for the **test SMS** after verification; **required when `MOCK_INTEGRATIONS=0`**.
 
 ---
 
@@ -70,6 +70,31 @@ Copy from `.env.example`; minimum:
 2. For signup/login SMS, ensure the destination numbers are allowed on your Twilio account (trial restrictions apply).
 3. Optional **Lookup** on signup uses the same Account SID / Auth Token (`lib/twilio.ts`).
 4. Production: register sender / campaign compliance (10DLC / toll-free) as required for your traffic.
+
+---
+
+## Enable “real product” behavior (do this on **staging** first)
+
+1. In Vercel (or `.env` locally), set **`MOCK_INTEGRATIONS=0`** and **redeploy**.
+2. Add **all** Twilio variables below — the app **requires** Verify **and** Messaging when mocks are off (`lib/integration-config.ts`, `lib/twilio.ts`).
+
+### Google Cloud (Places)
+
+1. [Google Cloud Console](https://console.cloud.google.com/) → your project → **APIs & Services** → **Enable** the **Places API** (the classic Places Web Service used by `lib/places.ts`: Autocomplete + Place Details).
+2. **Credentials** → create an **API key** → **Restrict key**: HTTP referrers (your site + `http://localhost:3000` for dev) and API = Places (tighten after it works).
+3. **Billing** must be enabled on the project.
+4. Set **`GOOGLE_MAPS_API_KEY`** in the server environment.
+
+With **`MOCK_INTEGRATIONS=0`**, choosing a business from search requires this key. **Manual address** signup still works without Maps.
+
+### Twilio
+
+1. [Twilio Console](https://console.twilio.com/) → **Develop** → **Verify** → **Services** → create a service → copy **`TWILIO_VERIFY_SERVICE_SID`**.
+2. **Account** → copy **`TWILIO_ACCOUNT_SID`** and **`TWILIO_AUTH_TOKEN`** (use **test** credentials only on a dev account if you prefer).
+3. **Phone Numbers** → buy or use a number that can send **SMS** → set **`TWILIO_MESSAGING_FROM`** to that number in **E.164** (e.g. `+15551234567`). This sends the **test SMS** with the preview link after the user enters the correct code.
+4. **Trial accounts** can only SMS **verified** caller IDs — add your test phone under **Verified Caller IDs** until you upgrade.
+
+**End-to-end:** Continue on signup → SMS with **Verify code** → enter code on step 2 → **second SMS** (Messaging) with `/t/...` link.
 
 ---
 

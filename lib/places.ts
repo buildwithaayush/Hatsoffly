@@ -2,6 +2,18 @@ import tzlookup from "tz-lookup";
 
 export type PlacePrediction = { place_id: string; description: string };
 
+/** Thrown when Google Places returns a non-success status (caller maps to HTTP 503). */
+export class PlacesApiError extends Error {
+  constructor(
+    message: string,
+    public readonly googleStatus?: string,
+    public readonly googleMessage?: string,
+  ) {
+    super(message);
+    this.name = "PlacesApiError";
+  }
+}
+
 export type PlaceDetails = {
   name: string;
   formatted_address: string;
@@ -53,9 +65,14 @@ export async function autocompletePlaces(
   const data = (await res.json()) as {
     predictions?: { place_id: string; description: string }[];
     status: string;
+    error_message?: string;
   };
   if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
-    throw new Error(`places_autocomplete_${data.status}`);
+    throw new PlacesApiError(
+      `places_autocomplete_${data.status}`,
+      data.status,
+      data.error_message,
+    );
   }
   return (data.predictions ?? []).map((p) => ({
     place_id: p.place_id,
@@ -104,6 +121,7 @@ export async function placeDetails(placeId: string): Promise<PlaceDetails | null
   if (!res.ok) throw new Error("places_details_http");
   const data = (await res.json()) as {
     status: string;
+    error_message?: string;
     result?: {
       name?: string;
       formatted_address?: string;
@@ -114,7 +132,16 @@ export async function placeDetails(placeId: string): Promise<PlaceDetails | null
     };
   };
 
-  if (data.status !== "OK" || !data.result) return null;
+  if (data.status !== "OK" || !data.result) {
+    if (key && data.status !== "OK") {
+      throw new PlacesApiError(
+        `places_details_${data.status}`,
+        data.status,
+        data.error_message,
+      );
+    }
+    return null;
+  }
 
   const r = data.result;
   const lat = r.geometry?.location?.lat ?? 0;
