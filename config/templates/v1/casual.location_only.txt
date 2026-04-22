@@ -1,0 +1,1 @@
+Hey {cust_first}, hope {biz_name} took care of you today! Quick favor — share how it went? {short_link}

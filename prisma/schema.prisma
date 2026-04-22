@@ -1,0 +1,140 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum BusinessStatus {
+  onboarding
+  active
+  paused
+  churned
+}
+
+enum Industry {
+  hvac_plumbing_electrical
+  roofing_exterior
+  auto_services
+  dental_medical_vet
+  home_services
+  restaurant_hospitality
+  retail_local
+  other
+}
+
+enum BusinessRole {
+  owner
+  admin
+  manager
+  viewer
+}
+
+enum TemplateVoice {
+  professional
+  friendly
+  casual
+  brief
+}
+
+model User {
+  id              String    @id @default(uuid())
+  email           String    @unique
+  fullName        String
+  phoneE164       String
+  phoneLineType   String?
+  phoneVerifiedAt DateTime?
+  authProvider    String    @default("email")
+  googleSub       String?   @unique
+  lastLoginAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  roles           UserBusinessRole[]
+  businessesOwned Business[]         @relation("PrimaryContact")
+
+  @@index([phoneE164])
+}
+
+model Business {
+  id                   String          @id @default(uuid())
+  name                 String
+  industry             Industry
+  primaryContactUserId String
+  primaryContact       User            @relation("PrimaryContact", fields: [primaryContactUserId], references: [id], onDelete: Restrict)
+  status               BusinessStatus  @default(onboarding)
+  stripeCustomerId     String?
+  tosAcceptedAt        DateTime?
+  tosVersion           String?
+  trialEndsAt          DateTime?
+  templateVoice        TemplateVoice   @default(friendly)
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+
+  locations Location[]
+  roles     UserBusinessRole[]
+}
+
+model Location {
+  id                 String   @id @default(uuid())
+  businessId         String
+  business           Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name               String
+  googlePlaceId      String?
+  formattedAddress   String?
+  latitude           Float?
+  longitude          Float?
+  googleReviewUrl    String?
+  googlePrimaryType  String?
+  timezone           String   @default("America/New_York")
+  businessPhone      String?
+  needsGbpAssistance Boolean  @default(false)
+  isPrimary          Boolean  @default(true)
+  active             Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([businessId])
+}
+
+model UserBusinessRole {
+  userId     String
+  businessId String
+  role       BusinessRole
+  createdAt  DateTime     @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@id([userId, businessId])
+  @@index([businessId])
+}
+
+/// Ephemeral signup continuation (spec: Redis); SQLite-backed for MVP local dev.
+model PendingVerification {
+  id               String   @id
+  userId           String
+  businessId       String
+  locationId       String
+  /// signup | login — login skips test SMS on confirm.
+  purpose          String   @default("signup")
+  verifySid      String?
+  mockCode       String?
+  attempts       Int      @default(0)
+  idempotencyKey String?  @unique
+  expiresAt        DateTime
+  createdAt        DateTime @default(now())
+}
+
+model PreviewLink {
+  id              String   @id @default(uuid())
+  token           String   @unique
+  businessId      String
+  googleReviewUrl String?
+  businessName    String
+  firstName       String
+  expiresAt       DateTime
+  createdAt       DateTime @default(now())
+}

@@ -1,0 +1,1 @@
+Hi {cust_first}, thanks for choosing {biz_name}. How'd {prov_first} do? {short_link}

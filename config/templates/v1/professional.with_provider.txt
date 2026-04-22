@@ -1,0 +1,1 @@
+Hi {cust_first}, thank you for choosing {biz_name}. Your feedback on {prov_first}'s service would mean a lot: {short_link}

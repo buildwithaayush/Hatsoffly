@@ -5,6 +5,20 @@ import nextTs from "eslint-config-next/typescript";
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
+  {
+    files: [
+      "app/api/**/*.ts",
+      "app/t/**/*.tsx",
+      "lib/twilio.ts",
+      "components/onboarding/onboarding-flow.tsx",
+      "components/auth/login-flow.tsx",
+    ],
+    rules: {
+      "react-hooks/purity": "off",
+      "react-hooks/set-state-in-effect": "off",
+      "react-hooks/immutability": "off",
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

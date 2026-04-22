@@ -1,0 +1,1 @@
+Hi {cust_first}! Thanks for choosing {biz_name} — {prov_first} hopes we got it right. Share your thoughts? {short_link}

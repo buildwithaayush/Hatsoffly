@@ -1,26 +1,197 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f8fafc;
+  --foreground: #0f172a;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  /* Brand scale — aligned across marketing + app shell */
+  --color-brand-50: #ecfdf5;
+  --color-brand-100: #d1fae5;
+  --color-brand-200: #a7f3d0;
+  --color-brand-300: #6ee7b7;
+  --color-brand-400: #34d399;
+  --color-brand-500: #10b981;
+  --color-brand-600: #059669;
+  --color-brand-700: #047857;
+  --color-brand-800: #065f46;
+  --color-brand-900: #064e3b;
+  --color-brand-950: #022c22;
+
+  --color-surface-elevated: #ffffff;
+  --color-ink-muted: #64748b;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+}
+
+/* Mesh hero utility */
+.mesh-hero {
+  background-color: #020617;
+  background-image:
+    radial-gradient(ellipse 120% 80% at 50% -40%, rgb(16 185 129 / 0.35), transparent),
+    radial-gradient(ellipse 60% 50% at 100% 0%, rgb(45 212 191 / 0.12), transparent),
+    radial-gradient(ellipse 50% 40% at 0% 100%, rgb(5 150 105 / 0.18), transparent);
+}
+
+.grid-lines {
+  background-size: 48px 48px;
+  background-image:
+    linear-gradient(to right, rgb(148 163 184 / 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(148 163 184 / 0.06) 1px, transparent 1px);
+}
+
+/* Marketing palette (Hatsoffly warm SaaS) */
+:root {
+  --rf-cream: #f7f1eb;
+  --rf-ink: #155e63;
+  --rf-coral: #f28e63;
+  --rf-teal: #2a8c89;
+  --rf-dark: #0d2530;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rf-motion,
+  .rf-motion * {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+@keyframes rf-blob {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(28px, -36px) scale(1.08);
+  }
+  66% {
+    transform: translate(-22px, 18px) scale(0.94);
+  }
+}
+
+@keyframes rf-float-y {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-14px);
+  }
+}
+
+@keyframes rf-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes rf-shimmer-line {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes rf-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.rf-blob {
+  animation: rf-blob 20s ease-in-out infinite;
+}
+
+.rf-blob-alt {
+  animation: rf-blob 26s ease-in-out infinite reverse;
+}
+
+.rf-float {
+  animation: rf-float-y 5.5s ease-in-out infinite;
+}
+
+.rf-float-delayed {
+  animation: rf-float-y 6.5s ease-in-out infinite 0.8s;
+}
+
+.rf-enter {
+  opacity: 0;
+  animation: rf-fade-up 0.85s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.rf-enter-delay-1 {
+  animation-delay: 0.1s;
+}
+.rf-enter-delay-2 {
+  animation-delay: 0.2s;
+}
+.rf-enter-delay-3 {
+  animation-delay: 0.3s;
+}
+.rf-enter-delay-4 {
+  animation-delay: 0.4s;
+}
+
+.rf-shimmer {
+  background: linear-gradient(
+    110deg,
+    transparent 0%,
+    rgb(242 142 99 / 0.35) 45%,
+    transparent 90%
+  );
+  background-size: 200% 100%;
+  animation: rf-shimmer-line 4s ease-in-out infinite;
+}
+
+.rf-marquee-wrap {
+  overflow: hidden;
+  mask-image: linear-gradient(90deg, transparent, black 8%, black 92%, transparent);
+}
+
+.rf-marquee-track {
+  display: flex;
+  width: max-content;
+  animation: rf-marquee 40s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rf-marquee-track {
+    animation: none;
+  }
+}
+
+/* Stripe-like marketing: subtle grid + mesh (used on dark hero) */
+.hs-stripe-grid {
+  background-image:
+    linear-gradient(to right, rgb(255 255 255 / 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(255 255 255 / 0.04) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(ellipse 70% 70% at 50% 30%, black, transparent);
+}
+
+.hs-aurora-blob {
+  filter: blur(72px);
+  will-change: transform, opacity;
 }
