@@ -16,6 +16,12 @@ Server code reads `NEXT_PUBLIC_APP_ENV` and falls back to `VERCEL_ENV` when the 
 
 The MVP used SQLite locally; **SQLite does not work on Vercel’s serverless filesystem** for real writes. The app now targets **PostgreSQL**. Your deploy must set **`DATABASE_URL`** (e.g. Neon) and **`JWT_SECRET`**. Builds run **`prisma migrate deploy`** so tables exist automatically.
 
+### Build fails: `P1012` / `Environment variable not found: DATABASE_URL`
+
+**Cause:** `npm run build` runs Prisma against your schema; **`DATABASE_URL` must exist during the build** — not only at runtime.
+
+**Fix:** In **Vercel → Settings → Environment Variables**, add **`DATABASE_URL`** and enable it for **every environment you deploy** (typically **Production** *and* **Preview** — Preview branches build too). Save, then **Redeploy**.
+
 ---
 
 ## Quick start (local)
