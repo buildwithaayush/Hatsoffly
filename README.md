@@ -6,12 +6,14 @@ Next.js app for onboarding, SMS verification, Places-backed business signup, and
 
 ```bash
 cp .env.example .env
-# Edit .env — set JWT_SECRET at minimum.
+# Edit .env — set DATABASE_URL (Postgres, e.g. Neon), JWT_SECRET, etc.
 
 npm install
 npm run db:push
 npm run dev
 ```
+
+Use a **PostgreSQL** URL locally (Neon free tier works). SQLite is no longer supported — Vercel and other serverless hosts need Postgres.
 
 Open [http://localhost:3000](http://localhost:3000).
 

@@ -4,7 +4,7 @@ Three logical tiers drive config, UI banners, and safe defaults:
 
 | Tier | Typical host | `NEXT_PUBLIC_APP_ENV` | Database | Integrations |
 |------|----------------|------------------------|----------|--------------|
-| **local** | `localhost` | `local` | SQLite (`file:./dev.db`) | Mocks **default** if `MOCK_INTEGRATIONS` is unset |
+| **local** | `localhost` | `local` | PostgreSQL (Neon free tier / Docker — same schema as prod) | Mocks **default** if `MOCK_INTEGRATIONS` is unset |
 | **development** | Vercel Preview / staging URL | `development` | Hosted Postgres (not prod DB) | Twilio **test/trial** + GCP project for Places; set `MOCK_INTEGRATIONS=1` if you want mocks |
 | **production** | Customer-facing domain | `production` | Postgres + backups | Twilio **live** Verify + compliant sender; Maps/OAuth production keys |
 
@@ -12,14 +12,22 @@ Server code reads `NEXT_PUBLIC_APP_ENV` and falls back to `VERCEL_ENV` when the 
 
 ---
 
+## Why signup failed on Vercel
+
+The MVP used SQLite locally; **SQLite does not work on Vercel’s serverless filesystem** for real writes. The app now targets **PostgreSQL**. Your deploy must set **`DATABASE_URL`** (e.g. Neon) and **`JWT_SECRET`**. Builds run **`prisma migrate deploy`** so tables exist automatically.
+
+---
+
 ## Quick start (local)
 
 1. `cp .env.example .env`
-2. Set `JWT_SECRET` (long random string).
+2. Create a **Postgres** database (Neon free tier is fine) and paste `DATABASE_URL`.
+3. Set `JWT_SECRET` (long random string).
 3. Keep `NEXT_PUBLIC_APP_ENV=local` and either:
    - leave `MOCK_INTEGRATIONS=1` (or omit it — **local tier defaults to mocks**), verification code **`123456`**, or
    - set `MOCK_INTEGRATIONS=0` and add real **Twilio** + **Google Maps** keys below.
-4. `npm install && npm run db:push && npm run dev`
+4. `npm install && npm run db:push && npm run dev`  
+   (`db:push` syncs schema; production uses `prisma migrate deploy` during `npm run build`.)
 
 ---
 

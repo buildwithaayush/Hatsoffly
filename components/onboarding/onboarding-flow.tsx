@@ -300,7 +300,23 @@ export function OnboardingFlow() {
         body: JSON.stringify(body),
       });
 
-      const data = await res.json();
+      let data: {
+        pending_verification_token?: string;
+        phone_masked?: string;
+        first_name?: string;
+        error?: { message?: string };
+      };
+      try {
+        data = (await res.json()) as typeof data;
+      } catch {
+        setTopError(
+          res.status >= 500
+            ? "Server error — if this persists, confirm Postgres DATABASE_URL and migrations on your host."
+            : "Unexpected response from server.",
+        );
+        return;
+      }
+
       if (!res.ok) {
         const msg =
           data?.error?.message ??
@@ -309,12 +325,14 @@ export function OnboardingFlow() {
         return;
       }
 
-      setPendingToken(data.pending_verification_token);
-      setPhoneMasked(data.phone_masked);
+      setPendingToken(data.pending_verification_token ?? "");
+      setPhoneMasked(data.phone_masked ?? "");
       setVerifyFirstName(data.first_name ?? fullName.trim().split(/\s+/)[0] ?? "");
       setStep("verify");
       setResendSec(30);
       setCode(["", "", "", "", "", ""]);
+    } catch {
+      setTopError("Could not reach the server — check your connection and try again.");
     } finally {
       setSubmitting(false);
     }
