@@ -113,7 +113,7 @@ async function signupHandler(req: NextRequest) {
   if (!phone.ok) {
     const message =
       phone.reason === "not_in_allowlist"
-        ? "This number is not allowed in this environment. Set DEV_PHONE_ALLOWLIST in .env or use an allowed number."
+        ? "This number is not on DEV_PHONE_ALLOWLIST (local/dev: India +91 does not need to be listed; allowlist restricts US/Canada)."
         : phone.reason === "unsupported_region"
           ? "US and Canada mobile numbers only (production)."
           : "Enter a valid mobile number.";

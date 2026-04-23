@@ -47,9 +47,10 @@ function isLikelyIndianMobile(p: PhoneNumber): boolean {
 
 /**
  * Optional comma-separated E.164 numbers. When set (local + development tiers only),
- * ONLY these numbers are accepted — useful for testing with one SIM.
+ * US/CA numbers must be on the list. **Indian (+91) mobiles are always allowed** in
+ * those tiers and are not blocked by this allowlist.
  *
- * Example: DEV_PHONE_ALLOWLIST="+918123456789,+14155552671"
+ * Example: `DEV_PHONE_ALLOWLIST="+14155552671"` (US test line only; +91 still open)
  */
 export function devPhoneAllowlist(): string[] | null {
   if (getAppTier() === "production") return null;
@@ -67,7 +68,8 @@ function allowlisted(e164: string): boolean {
 
 /**
  * Signup/login: US/Canada in production.
- * Local + development: US/CA, India (+91), or `DEV_PHONE_ALLOWLIST` only.
+ * Local + development: any valid Indian mobile (+91); US/CA optionally narrowed by
+ * `DEV_PHONE_ALLOWLIST`; allowlist may still admit additional E.164 numbers.
  */
 export function parseSignupMobile(rawInput: string): PhoneParseResult {
   const trimmed = rawInput.trim();
@@ -90,6 +92,19 @@ export function parseSignupMobile(rawInput: string): PhoneParseResult {
     return usca;
   }
 
+  const inP = parsePhoneNumberFromString(trimmed, "IN");
+  if (inP?.isValid() && inP.countryCallingCode === "91" && isLikelyIndianMobile(inP)) {
+    return { ok: true, e164: inP.number };
+  }
+  const anyIn = parsePhoneNumberFromString(trimmed);
+  if (
+    anyIn?.isValid() &&
+    anyIn.countryCallingCode === "91" &&
+    isLikelyIndianMobile(anyIn)
+  ) {
+    return { ok: true, e164: anyIn.number };
+  }
+
   const list = devPhoneAllowlist();
   if (list?.length) {
     const p = parsePhoneNumberFromString(trimmed);
@@ -97,16 +112,6 @@ export function parseSignupMobile(rawInput: string): PhoneParseResult {
       return { ok: true, e164: p.number };
     }
     return { ok: false, reason: "not_in_allowlist" };
-  }
-
-  const inP = parsePhoneNumberFromString(trimmed, "IN");
-  if (inP?.isValid() && inP.countryCallingCode === "91" && isLikelyIndianMobile(inP)) {
-    return { ok: true, e164: inP.number };
-  }
-
-  const any = parsePhoneNumberFromString(trimmed);
-  if (any?.isValid() && any.countryCallingCode === "91" && isLikelyIndianMobile(any)) {
-    return { ok: true, e164: any.number };
   }
 
   return usca;

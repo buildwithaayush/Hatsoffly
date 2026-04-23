@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
   if (!phone.ok) {
     const message =
       phone.reason === "not_in_allowlist"
-        ? "This number is not on DEV_PHONE_ALLOWLIST for this environment."
+        ? "Not on DEV_PHONE_ALLOWLIST (India +91 is open in local/dev without listing)."
         : phone.reason === "unsupported_region"
           ? "US and Canada only in production."
           : "Enter a valid mobile number.";

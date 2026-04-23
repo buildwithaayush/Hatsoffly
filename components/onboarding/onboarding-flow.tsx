@@ -688,8 +688,8 @@ export function OnboardingFlow() {
             />
             {phoneRaw && !phoneE164 && (
               <p className="mt-1 text-sm text-red-700" role="status" aria-live="polite">
-                Enter a valid mobile (US/Canada; India +91 when not in production, or use
-                DEV_PHONE_ALLOWLIST).
+                Enter a valid mobile (production: US/Canada; local/dev: any India +91 mobile
+                or US/Canada — use DEV_PHONE_ALLOWLIST only to restrict US/CA lines).
               </p>
             )}
           </div>
