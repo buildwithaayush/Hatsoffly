@@ -50,6 +50,81 @@ export async function GET() {
       })
     : null;
 
+  let feedback_stats:
+    | {
+        total_sessions: number;
+        private_feedback_count: number;
+        google_intent_count: number;
+        preview_links_week: number;
+        last_private_at: string | null;
+      }
+    | null = null;
+
+  if (business) {
+    const tokens = await prisma.previewLink.findMany({
+      where: { businessId: business.id },
+      select: { token: true },
+    });
+    const tokenList = tokens.map((t) => t.token);
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    const empty = tokenList.length === 0;
+
+    const [
+      total_sessions,
+      private_feedback_count,
+      google_intent_count,
+      preview_links_week,
+      lastPrivate,
+    ] = await Promise.all([
+      empty
+        ? 0
+        : prisma.previewFeedback.count({
+            where: { previewToken: { in: tokenList } },
+          }),
+      empty
+        ? 0
+        : prisma.previewFeedback.count({
+            where: {
+              previewToken: { in: tokenList },
+              rating: { lte: 3 },
+            },
+          }),
+      empty
+        ? 0
+        : prisma.previewFeedback.count({
+            where: {
+              previewToken: { in: tokenList },
+              rating: { gte: 4 },
+            },
+          }),
+      prisma.previewLink.count({
+        where: {
+          businessId: business.id,
+          createdAt: { gte: weekAgo },
+        },
+      }),
+      empty
+        ? null
+        : prisma.previewFeedback.findFirst({
+            where: {
+              previewToken: { in: tokenList },
+              rating: { lte: 3 },
+            },
+            orderBy: { createdAt: "desc" },
+            select: { createdAt: true },
+          }),
+    ]);
+
+    feedback_stats = {
+      total_sessions,
+      private_feedback_count,
+      google_intent_count,
+      preview_links_week,
+      last_private_at: lastPrivate?.createdAt.toISOString() ?? null,
+    };
+  }
+
   return jsonOk({
     user: {
       id: user.id,
@@ -92,5 +167,6 @@ export async function GET() {
           customer_path: `/t/${preview.token}`,
         }
       : null,
+    feedback_stats,
   });
 }

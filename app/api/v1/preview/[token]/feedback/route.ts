@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { jsonError, jsonOk } from "@/lib/api-envelope";
+import { notifyOwnerPrivateFeedback } from "@/lib/notify-owner-private-feedback";
 
 export const runtime = "nodejs";
 
@@ -78,6 +79,34 @@ export async function POST(
       return jsonError("already_submitted", "You already responded.", 409);
     }
     throw e;
+  }
+
+  if (rating <= 3) {
+    try {
+      const biz = await prisma.business.findUnique({
+        where: { id: link.businessId },
+        include: {
+          primaryContact: {
+            select: { email: true, phoneE164: true },
+          },
+        },
+      });
+      const ownerEmail = biz?.primaryContact?.email?.trim();
+      const ownerPhone = biz?.primaryContact?.phoneE164?.trim();
+      const businessName = link.businessName.trim();
+      const pm = (private_message ?? "").trim();
+      if (pm.length > 0 && (ownerEmail || ownerPhone)) {
+        await notifyOwnerPrivateFeedback({
+          businessName,
+          ownerEmail,
+          ownerPhoneE164: ownerPhone,
+          rating,
+          privateMessage: pm,
+        });
+      }
+    } catch (e) {
+      console.error("[preview feedback owner notify]", e);
+    }
   }
 
   return jsonOk({

@@ -155,3 +155,48 @@ export async function sendTestSms(opts: {
   const data = (await res.json()) as { sid?: string };
   return { sid: data.sid ?? MOCK_SID };
 }
+
+/** Short transactional SMS (alerts, not marketing). Uses same Messaging sender as test SMS. */
+export async function sendTransactionalSms(
+  toE164: string,
+  body: string,
+): Promise<{ sid?: string }> {
+  const message = body.trim().slice(0, 1530);
+  if (isMockIntegrations()) {
+    console.info("[MOCK transactional SMS to %s]\n%s", toE164, message);
+    return { sid: MOCK_SID };
+  }
+
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  const token = process.env.TWILIO_AUTH_TOKEN;
+  const from = process.env.TWILIO_MESSAGING_FROM;
+  if (!accountSid || !token || !from) {
+    console.warn(
+      "[Transactional SMS skipped — set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_MESSAGING_FROM]",
+    );
+    return { sid: MOCK_SID };
+  }
+
+  const formBody = new URLSearchParams({
+    To: toE164,
+    From: from,
+    Body: message,
+  });
+
+  const res = await fetch(
+    `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
+    {
+      method: "POST",
+      headers: {
+        Authorization:
+          "Basic " + Buffer.from(`${accountSid}:${token}`).toString("base64"),
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: formBody,
+      signal: AbortSignal.timeout(8000),
+    },
+  );
+  if (!res.ok) throw new Error("twilio_transactional_sms_failed");
+  const data = (await res.json()) as { sid?: string };
+  return { sid: data.sid ?? MOCK_SID };
+}

@@ -42,12 +42,59 @@ type MeResponse = {
     token: string;
     customer_path: string;
   } | null;
+  feedback_stats?: {
+    total_sessions: number;
+    private_feedback_count: number;
+    google_intent_count: number;
+    preview_links_week: number;
+    last_private_at: string | null;
+  } | null;
   error?: { message?: string };
 };
 
 function firstName(full: string): string {
   const t = full.trim().split(/\s+/)[0];
   return t || "there";
+}
+
+function formatRelativeShort(d: Date): string {
+  const sec = Math.round((Date.now() - d.getTime()) / 1000);
+  if (sec < 45) return "just now";
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 36) return `${hr}h ago`;
+  return d.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function LiveStatusPill({ syncedAt }: { syncedAt: Date | null }) {
+  if (!syncedAt) return null;
+  return (
+    <div className="flex shrink-0 flex-col items-end gap-1 sm:pt-1">
+      <div className="flex items-center gap-2 rounded-full border border-emerald-300/70 bg-gradient-to-br from-emerald-50 to-teal-50 px-3.5 py-2 shadow-md shadow-emerald-900/10 ring-1 ring-emerald-200/60">
+        <span className="relative flex h-2.5 w-2.5">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-35" />
+          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.65)]" />
+        </span>
+        <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-900">
+          Live
+        </span>
+      </div>
+      <p className="max-w-[11rem] text-right text-[11px] font-medium leading-snug text-slate-500">
+        Synced{" "}
+        {syncedAt.toLocaleTimeString(undefined, {
+          hour: "numeric",
+          minute: "2-digit",
+          second: "2-digit",
+        })}
+      </p>
+    </div>
+  );
 }
 
 export function DashboardExperience() {
@@ -59,6 +106,35 @@ export function DashboardExperience() {
   const [welcomeDismissed, setWelcomeDismissed] = useState(false);
   const [clientReady, setClientReady] = useState(false);
   const [trialDaysLeft, setTrialDaysLeft] = useState<number | null>(null);
+  const [lastSynced, setLastSynced] = useState<Date | null>(null);
+
+  const loadMe = useCallback(async () => {
+    try {
+      const res = await fetch("/api/v1/auth/me", { cache: "no-store" });
+      const json = (await res.json()) as MeResponse & {
+        error?: { message?: string };
+      };
+      setLastSynced(new Date());
+      if (!res.ok) {
+        setData({
+          error: {
+            message:
+              json?.error?.message ??
+              "Could not load your session. Please log in again.",
+          },
+        });
+        return;
+      }
+      setData(json);
+    } catch {
+      setLastSynced(new Date());
+      setData({
+        error: {
+          message: "Could not load your session. Please log in again.",
+        },
+      });
+    }
+  }, []);
 
   useEffect(() => {
     const boot = window.setTimeout(() => {
@@ -97,30 +173,23 @@ export function DashboardExperience() {
   }, [data?.business?.trial_ends_at]);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const res = await fetch("/api/v1/auth/me");
-      const json = (await res.json()) as MeResponse & {
-        error?: { message?: string };
-      };
-      if (!cancelled) {
-        if (!res.ok) {
-          setData({
-            error: {
-              message:
-                json?.error?.message ??
-                "Could not load your session. Please log in again.",
-            },
-          });
-          return;
-        }
-        setData(json);
-      }
-    })();
-    return () => {
-      cancelled = true;
+    const t = window.setTimeout(() => {
+      void loadMe();
+    }, 0);
+    return () => clearTimeout(t);
+  }, [loadMe]);
+
+  useEffect(() => {
+    const tick = () => {
+      if (document.visibilityState === "visible") void loadMe();
     };
-  }, []);
+    const id = setInterval(tick, 25_000);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", tick);
+    };
+  }, [loadMe]);
 
   const dismissWelcome = useCallback(() => {
     try {
@@ -198,6 +267,7 @@ export function DashboardExperience() {
   const b = data.business;
   const loc = data.primary_location;
   const act = b?.activation;
+  const fs = data.feedback_stats ?? null;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50/80">
@@ -263,41 +333,55 @@ export function DashboardExperience() {
             aria-hidden
           />
 
-          <div className="relative">
-            <p className="text-sm font-medium uppercase tracking-[0.2em] text-brand-700/90">
-              Overview
-            </p>
-            <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
-              Hi {firstName(u?.full_name ?? "")},{" "}
-              <span className="bg-gradient-to-r from-brand-700 to-teal-700 bg-clip-text text-transparent">
-                let&apos;s grow reviews.
-              </span>
-            </h1>
-            <p className="mt-3 max-w-2xl text-lg leading-relaxed text-slate-600">
-              {b?.name} ·{" "}
-              <span className="font-medium text-slate-700">
-                {formatIndustry(b?.industry ?? "other")}
-              </span>
-            </p>
+          <div className="relative flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium uppercase tracking-[0.2em] text-brand-700/90">
+                Overview
+              </p>
+              <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+                Hi {firstName(u?.full_name ?? "")},{" "}
+                <span className="bg-gradient-to-r from-brand-700 to-teal-700 bg-clip-text text-transparent">
+                  let&apos;s grow reviews.
+                </span>
+              </h1>
+              <p className="mt-3 max-w-2xl text-lg leading-relaxed text-slate-600">
+                {b?.name} ·{" "}
+                <span className="font-medium text-slate-700">
+                  {formatIndustry(b?.industry ?? "other")}
+                </span>
+              </p>
+            </div>
+            <LiveStatusPill syncedAt={lastSynced} />
           </div>
+
+          {fs?.last_private_at ? (
+            <p className="relative mt-6 rounded-xl border border-amber-200/80 bg-amber-50/90 px-4 py-3 text-sm text-amber-950 shadow-sm ring-1 ring-amber-100/80">
+              <span className="font-semibold">Recent activity · </span>
+              Latest private feedback{" "}
+              <span className="tabular-nums">
+                {formatRelativeShort(new Date(fs.last_private_at))}
+              </span>
+              . Check your phone and inbox for alerts.
+            </p>
+          ) : null}
 
           <div className="relative mt-10 grid gap-4 sm:grid-cols-3">
             <StatCard
-              title="Review requests"
-              value="0"
-              subtitle="Sent this week"
+              title="Preview links"
+              value={String(fs?.preview_links_week ?? 0)}
+              subtitle="Issued last 7 days"
               accent="brand"
             />
             <StatCard
-              title="Google taps"
-              value="—"
-              subtitle="From SMS previews"
+              title="Google intent"
+              value={String(fs?.google_intent_count ?? 0)}
+              subtitle="4–5★ sessions recorded"
               accent="slate"
             />
             <StatCard
               title="Private feedback"
-              value="0"
-              subtitle="Caught before Google"
+              value={String(fs?.private_feedback_count ?? 0)}
+              subtitle="≤3★ caught before Google"
               accent="teal"
             />
           </div>
@@ -420,7 +504,11 @@ export function DashboardExperience() {
                   Copy preview URL
                 </button>
                 <Link
-                  href={data.preview_link?.customer_path ?? "#"}
+                  href={
+                    data.preview_link
+                      ? `${data.preview_link.customer_path}?owner=1`
+                      : "#"
+                  }
                   target="_blank"
                   rel="noreferrer"
                   className="mt-3 flex min-h-[44px] items-center justify-center rounded-xl bg-brand-600 py-3 text-sm font-semibold text-white hover:bg-brand-700"

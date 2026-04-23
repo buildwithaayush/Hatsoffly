@@ -318,7 +318,8 @@ function LoginFlowInner() {
             />
             {phoneRaw && !phoneE164 && (
               <p className="mt-1 text-sm text-red-700" role="status" aria-live="polite">
-                Enter a valid mobile (production: US/Canada; local/dev: India +91 or US/CA).
+                Enter a valid mobile (production: US/Canada; staging: US/CA +91; local:
+                same, optional DEV_PHONE_ALLOWLIST for US/CA).
               </p>
             )}
           </div>

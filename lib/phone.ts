@@ -46,14 +46,19 @@ function isLikelyIndianMobile(p: PhoneNumber): boolean {
 }
 
 /**
- * Optional comma-separated E.164 numbers. When set (local + development tiers only),
- * US/CA numbers must be on the list. **Indian (+91) mobiles are always allowed** in
- * those tiers and are not blocked by this allowlist.
+ * Optional comma-separated E.164 numbers — **local tier only** (e.g. laptop).
  *
- * Example: `DEV_PHONE_ALLOWLIST="+14155552671"` (US test line only; +91 still open)
+ * - **`development`** (Vercel Preview / staging): this list is **never applied** so US/CA and
+ *   India (+91) both work without listing numbers.
+ * - **`local`**: when set, US/CA must appear on the list; **+91 Indian mobiles still bypass**
+ *   the list (see `parseSignupMobile`).
+ *
+ * Example: `DEV_PHONE_ALLOWLIST="+14155552671"`
  */
 export function devPhoneAllowlist(): string[] | null {
   if (getAppTier() === "production") return null;
+  // Preview / shared dev deploys: fully open — never gate signup on this list.
+  if (getAppTier() === "development") return null;
   const raw = process.env.DEV_PHONE_ALLOWLIST?.trim();
   if (!raw) return null;
   const list = raw.split(",").map((s) => s.trim()).filter(Boolean);
@@ -68,8 +73,8 @@ function allowlisted(e164: string): boolean {
 
 /**
  * Signup/login: US/Canada in production.
- * Local + development: any valid Indian mobile (+91); US/CA optionally narrowed by
- * `DEV_PHONE_ALLOWLIST`; allowlist may still admit additional E.164 numbers.
+ * **Development:** US/CA and India (+91) — open (no `DEV_PHONE_ALLOWLIST`).
+ * **Local:** same regions; optional allowlist narrows US/CA only (`DEV_PHONE_ALLOWLIST`).
  */
 export function parseSignupMobile(rawInput: string): PhoneParseResult {
   const trimmed = rawInput.trim();

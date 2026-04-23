@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "postinstall": "prisma generate",
-    "db:push": "prisma db push"
+    "db:push": "prisma db push",
+    "db:clear-demo": "node scripts/clear-demo-data.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.3.0",
