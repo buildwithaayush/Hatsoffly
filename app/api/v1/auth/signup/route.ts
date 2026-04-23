@@ -306,11 +306,13 @@ async function signupHandler(req: NextRequest) {
     try {
       const r = await verifyStartSms(phone.e164);
       verifySid = r.sid;
-    } catch {
+    } catch (e1) {
+      console.error("[signup verifyStartSms] first attempt", e1);
       try {
         const r = await verifyStartSms(phone.e164);
         verifySid = r.sid;
-      } catch {
+      } catch (e2) {
+        console.error("[signup verifyStartSms] retry failed", e2);
         const pending = await prisma.pendingVerification.findUnique({
           where: { id: pvt },
         });

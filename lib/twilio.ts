@@ -7,6 +7,27 @@ const MOCK_SID = "SM_MOCK_SID";
 /** Outbound Messaging not configured — verify route surfaces this to the client. */
 export const TWILIO_MESSAGING_NOT_CONFIGURED = "TWILIO_MESSAGING_NOT_CONFIGURED";
 
+/** Parse Twilio REST error JSON for logs (never log auth headers). */
+async function twilioErrorSummary(res: Response): Promise<string> {
+  const text = await res.text().catch(() => "");
+  try {
+    const j = JSON.parse(text) as {
+      code?: number;
+      message?: string;
+      more_info?: string;
+      status?: number;
+    };
+    const parts = [
+      j.code != null ? String(j.code) : null,
+      j.message,
+      j.more_info,
+    ].filter(Boolean);
+    return parts.length ? parts.join(" — ") : text.slice(0, 400);
+  } catch {
+    return text.slice(0, 400) || `HTTP ${res.status}`;
+  }
+}
+
 export async function twilioLookupLineType(_e164: string): Promise<
   "mobile" | "voip" | "unknown" | "landline"
 > {
@@ -58,7 +79,11 @@ export async function verifyStartSms(toE164: string): Promise<{ sid?: string }> 
       signal: AbortSignal.timeout(5000),
     },
   );
-  if (!res.ok) throw new Error("twilio_verify_start_failed");
+  if (!res.ok) {
+    const detail = await twilioErrorSummary(res);
+    console.error("[Twilio Verify start]", res.status, detail);
+    throw new Error(`twilio_verify_start_failed: ${detail}`);
+  }
   const data = (await res.json()) as { sid?: string };
   return { sid: data.sid };
 }
@@ -87,7 +112,11 @@ export async function verifyCheckCode(toE164: string, code: string): Promise<boo
       signal: AbortSignal.timeout(5000),
     },
   );
-  if (!res.ok) return false;
+  if (!res.ok) {
+    const detail = await twilioErrorSummary(res);
+    console.error("[Twilio Verify check]", res.status, detail);
+    return false;
+  }
   const data = (await res.json()) as { status?: string };
   return data.status === "approved";
 }
@@ -151,7 +180,11 @@ export async function sendTestSms(opts: {
       signal: AbortSignal.timeout(8000),
     },
   );
-  if (!res.ok) throw new Error("twilio_sms_failed");
+  if (!res.ok) {
+    const detail = await twilioErrorSummary(res);
+    console.error("[Twilio Messaging sendTestSms]", res.status, detail);
+    throw new Error(`twilio_sms_failed: ${detail}`);
+  }
   const data = (await res.json()) as { sid?: string };
   return { sid: data.sid ?? MOCK_SID };
 }
@@ -196,7 +229,11 @@ export async function sendTransactionalSms(
       signal: AbortSignal.timeout(8000),
     },
   );
-  if (!res.ok) throw new Error("twilio_transactional_sms_failed");
+  if (!res.ok) {
+    const detail = await twilioErrorSummary(res);
+    console.error("[Twilio Messaging transactional]", res.status, detail);
+    throw new Error(`twilio_transactional_sms_failed: ${detail}`);
+  }
   const data = (await res.json()) as { sid?: string };
   return { sid: data.sid ?? MOCK_SID };
 }
