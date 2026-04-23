@@ -10,10 +10,28 @@ import {
   useRef,
   useState,
 } from "react";
-import { normalizeNorthAmericanDialInput, parseUsCaMobile } from "@/lib/phone";
+import { AutoReviewsActivation } from "@/components/onboarding/auto-reviews-activation";
+import { parseSignupMobile } from "@/lib/phone";
 import { supportEmail, supportMailto } from "@/lib/support";
 
 const TOS_VERSION = "2026-04-16";
+
+function BackChevron({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M15 18l-6-6 6-6" />
+    </svg>
+  );
+}
 
 function isValidWorkEmail(s: string): boolean {
   const t = s.trim();
@@ -144,14 +162,8 @@ export function OnboardingFlow() {
     return () => clearInterval(id);
   }, [step, resendSec]);
 
-  useEffect(() => {
-    if (step !== "success") return;
-    const id = setTimeout(() => router.push("/dashboard?welcome=1"), 8000);
-    return () => clearTimeout(id);
-  }, [step, router]);
-
   const phoneE164 = useMemo(() => {
-    const r = parseUsCaMobile(normalizeNorthAmericanDialInput(phoneRaw));
+    const r = parseSignupMobile(phoneRaw);
     return r.ok ? r.e164 : null;
   }, [phoneRaw]);
 
@@ -215,7 +227,7 @@ export function OnboardingFlow() {
     const parts: string[] = [];
     if (fullName.trim().length < 2) parts.push("full name");
     if (!isValidWorkEmail(email)) parts.push("work email");
-    if (!phoneE164) parts.push("US/CA mobile");
+    if (!phoneE164) parts.push("valid mobile");
     if (manualMode) {
       if (!manualName.trim()) parts.push("business name");
       if (!manualStreet.trim()) parts.push("street");
@@ -413,40 +425,34 @@ export function OnboardingFlow() {
 
   if (step === "success") {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-brand-50 px-6 py-16 text-center">
-        <div className="mx-auto max-w-lg">
-          <div className="mx-auto mb-8 flex h-20 w-20 items-center justify-center rounded-full bg-brand-600 text-white shadow-lg ring-8 ring-brand-100">
-            <span className="text-4xl" aria-hidden>
-              ✓
-            </span>
-          </div>
-          <h1 className="text-balance text-3xl font-semibold tracking-tight text-slate-900">
-            You&apos;re live.
-          </h1>
-          <p className="mt-4 text-lg text-slate-700">
-            We just texted a test review request to your phone. That&apos;s exactly what your
-            customers will see.
-          </p>
-          <p className="mt-3 text-slate-600">
-            Our team is setting up your workflow integration in the background. You&apos;ll hear
-            from us within 48 hours.
-          </p>
-          <button
-            type="button"
-            className="mt-10 inline-flex min-h-[48px] items-center justify-center rounded-xl bg-brand-600 px-8 py-3 text-base font-semibold text-white hover:bg-brand-700"
-            onClick={() => router.push("/dashboard?welcome=1")}
-          >
-            Take me to my dashboard
-          </button>
-          <p className="mt-6 text-sm text-slate-500">Redirecting automatically in a few seconds…</p>
-        </div>
-      </div>
+      <AutoReviewsActivation
+        onDashboard={() => router.push("/dashboard?welcome=1")}
+      />
     );
   }
 
   if (step === "verify") {
     return (
       <div className="min-h-screen bg-slate-50 px-4 py-10">
+        <header className="mx-auto mb-8 flex max-w-[480px] items-center gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              setStep("signup");
+              setTopError(null);
+            }}
+            className="-ml-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-700 transition hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+            aria-label="Back to signup form"
+          >
+            <BackChevron className="h-6 w-6" />
+          </button>
+          <Link
+            href="/"
+            className="ml-auto text-lg font-semibold tracking-tight text-brand-800 hover:text-brand-900"
+          >
+            Hatsoffly
+          </Link>
+        </header>
         <div className="mx-auto w-full max-w-[480px] rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
           <p className="text-sm font-semibold uppercase tracking-wide text-brand-700">
             Step 2 of 2
@@ -533,10 +539,18 @@ export function OnboardingFlow() {
 
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-10">
-      <header className="mx-auto mb-8 flex max-w-[480px] items-center justify-between">
+      <header className="mx-auto mb-8 flex max-w-[480px] items-center gap-3">
+        <button
+          type="button"
+          onClick={() => router.push("/")}
+          className="-ml-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-700 transition hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+          aria-label="Back to home"
+        >
+          <BackChevron className="h-6 w-6" />
+        </button>
         <Link
           href="/"
-          className="text-lg font-semibold tracking-tight text-brand-800 hover:text-brand-900"
+          className="ml-auto text-lg font-semibold tracking-tight text-brand-800 hover:text-brand-900"
         >
           Hatsoffly
         </Link>
@@ -666,7 +680,7 @@ export function OnboardingFlow() {
               type="tel"
               inputMode="tel"
               autoComplete="tel"
-              placeholder="+1 (555) 123-4567"
+              placeholder="+1 · or +91 98765 43210 (local/dev)"
               className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-3 text-base outline-none ring-brand-500 focus:border-brand-500 focus:ring-2"
               value={phoneRaw}
               onChange={(e) => setPhoneRaw(e.target.value)}
@@ -674,7 +688,8 @@ export function OnboardingFlow() {
             />
             {phoneRaw && !phoneE164 && (
               <p className="mt-1 text-sm text-red-700" role="status" aria-live="polite">
-                Enter a valid US or Canada mobile number.
+                Enter a valid mobile (US/Canada; India +91 when not in production, or use
+                DEV_PHONE_ALLOWLIST).
               </p>
             )}
           </div>

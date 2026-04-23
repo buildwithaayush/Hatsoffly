@@ -2,14 +2,17 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { jsonError, jsonOk } from "@/lib/api-envelope";
-import { maskPhoneE164, parseUsCaMobile } from "@/lib/phone";
+import {
+  databaseUnreachableHelpMessage,
+  isMockIntegrations,
+} from "@/lib/env";
+import { maskPhoneE164, parseSignupMobile } from "@/lib/phone";
 import { isDisposableEmail } from "@/lib/disposable-email";
 import { rateLimitHit } from "@/lib/rate-limit";
 import { placeDetails } from "@/lib/places";
 import { industryToTemplateVoice, primaryTypeToIndustry } from "@/lib/industry";
 import { twilioLookupLineType, verifyStartSms } from "@/lib/twilio";
 import { newPendingVerificationToken } from "@/lib/token";
-import { isMockIntegrations } from "@/lib/env";
 import {
   assertProductionSmsOrExplain,
   googleMapsConfigured,
@@ -106,13 +109,21 @@ async function signupHandler(req: NextRequest) {
     return jsonError("email_exists", "Looks like you already have an account — sign in here.", 409);
   }
 
-  const phone = parseUsCaMobile(data.phone_e164);
+  const phone = parseSignupMobile(data.phone_e164);
   if (!phone.ok) {
+    const message =
+      phone.reason === "not_in_allowlist"
+        ? "This number is not allowed in this environment. Set DEV_PHONE_ALLOWLIST in .env or use an allowed number."
+        : phone.reason === "unsupported_region"
+          ? "US and Canada mobile numbers only (production)."
+          : "Enter a valid mobile number.";
     return jsonError(
-      phone.reason === "unsupported_region" ? "unsupported_region" : "invalid_phone",
-      phone.reason === "unsupported_region"
-        ? "US and Canada only for now."
-        : "Enter a valid mobile number.",
+      phone.reason === "not_in_allowlist"
+        ? "phone_not_allowed"
+        : phone.reason === "unsupported_region"
+          ? "unsupported_region"
+          : "invalid_phone",
+      message,
       422,
     );
   }
@@ -363,9 +374,7 @@ export async function POST(req: NextRequest) {
       );
     return jsonError(
       "server_error",
-      dbLikely
-        ? "Database unreachable — open Vercel → Settings → Environment Variables and set DATABASE_URL for this environment (Preview uses Preview vars; Production uses Production vars). Then redeploy."
-        : "Signup failed unexpectedly. Try again.",
+      dbLikely ? databaseUnreachableHelpMessage() : "Signup failed unexpectedly. Try again.",
       503,
     );
   }

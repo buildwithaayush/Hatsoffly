@@ -70,6 +70,14 @@ model Business {
   tosVersion           String?
   trialEndsAt          DateTime?
   templateVoice        TemplateVoice   @default(friendly)
+  /// Auto Reviews wizard (post-verify): integration tool key, e.g. quickbooks | other
+  activationTool           String?
+  activationToolOther      String?
+  activationTrigger        String?
+  activationTriggerOther   String?
+  /// self_serve | concierge
+  activationSetupPath      String?
+  activationCompletedAt    DateTime?
   createdAt            DateTime        @default(now())
   updatedAt            DateTime        @updatedAt
 
@@ -137,4 +145,13 @@ model PreviewLink {
   firstName       String
   expiresAt       DateTime
   createdAt       DateTime @default(now())
+}
+
+/// One response per customer visit to /t/[token] (MVP store for private + rating).
+model PreviewFeedback {
+  id             String   @id @default(uuid())
+  previewToken   String   @unique
+  rating         Int
+  privateMessage String?
+  createdAt      DateTime @default(now())
 }

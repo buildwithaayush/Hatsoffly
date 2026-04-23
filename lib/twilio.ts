@@ -1,5 +1,6 @@
 import { isMockIntegrations, appUrl } from "./env";
 import type { TemplateVoice } from "@prisma/client";
+import { interpolateTestSms, type TemplateVariant } from "@/lib/templates";
 
 const MOCK_SID = "SM_MOCK_SID";
 
@@ -97,13 +98,27 @@ export async function sendTestSms(opts: {
   businessName: string;
   previewPathToken: string;
   voice: TemplateVoice;
+  /** Same variants as production customer SMS (`config/templates/v1`). */
+  variant?: TemplateVariant;
 }) {
-  void opts.voice;
+  const variant: TemplateVariant = opts.variant ?? "location_only";
   const shortLink = `${appUrl().replace(/\/$/, "")}/t/${opts.previewPathToken}`;
-  const message =
-    `[TEST] Hi ${opts.firstName}, this is a preview of what your customers will see from ${opts.businessName}\n` +
-    `after a job. Tap to preview the review page:\n${shortLink}\n` +
-    `Reply STOP to opt out.`;
+  let body: string;
+  try {
+    body =
+      interpolateTestSms({
+        voice: opts.voice,
+        variant,
+        custFirst: opts.firstName,
+        bizName: opts.businessName,
+        shortLink,
+      }) + "\n\nReply STOP to opt out.";
+  } catch {
+    body =
+      `Hi ${opts.firstName}! We'd love your feedback on ${opts.businessName}: ${shortLink}\n\nReply STOP to opt out.`;
+  }
+
+  const message = body;
 
   if (isMockIntegrations()) {
     console.info("[MOCK SMS to %s]\n%s", opts.toE164, message);
@@ -117,7 +132,7 @@ export async function sendTestSms(opts: {
     throw new Error(TWILIO_MESSAGING_NOT_CONFIGURED);
   }
 
-  const body = new URLSearchParams({
+  const formBody = new URLSearchParams({
     To: opts.toE164,
     From: from,
     Body: message,
@@ -132,7 +147,7 @@ export async function sendTestSms(opts: {
           "Basic " + Buffer.from(`${accountSid}:${token}`).toString("base64"),
         "Content-Type": "application/x-www-form-urlencoded",
       },
-      body,
+      body: formBody,
       signal: AbortSignal.timeout(8000),
     },
   );

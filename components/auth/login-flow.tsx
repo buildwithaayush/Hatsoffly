@@ -3,9 +3,32 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useId, useMemo, useRef, useState, Suspense } from "react";
-import { parsePhoneNumberFromString } from "libphonenumber-js";
+import { parseSignupMobile } from "@/lib/phone";
 
 type Step = "phone" | "code";
+
+/** Avoid `res.json()` throwing on empty or HTML error bodies. */
+function parseApiBody(text: string): Record<string, unknown> | null {
+  const t = text.trim();
+  if (!t) return null;
+  try {
+    return JSON.parse(t) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+function errorMessageFromBody(
+  data: Record<string, unknown> | null,
+  fallback: string,
+): string {
+  const e = data?.error;
+  if (e && typeof e === "object" && e !== null && "message" in e) {
+    const m = (e as { message?: unknown }).message;
+    if (typeof m === "string" && m.trim()) return m;
+  }
+  return fallback;
+}
 
 function LoginFlowInner() {
   const router = useRouter();
@@ -26,10 +49,8 @@ function LoginFlowInner() {
   const [resendSec, setResendSec] = useState(30);
 
   const phoneE164 = useMemo(() => {
-    const p =
-      parsePhoneNumberFromString(phoneRaw.trim(), "US") ??
-      parsePhoneNumberFromString(phoneRaw.trim(), "CA");
-    return p?.isValid() && p.countryCallingCode === "1" ? p.number : null;
+    const r = parseSignupMobile(phoneRaw);
+    return r.ok ? r.e164 : null;
   }, [phoneRaw]);
 
   useEffect(() => {
@@ -71,14 +92,31 @@ function LoginFlowInner() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone_e164: phoneE164 }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setTopError(data?.error?.message ?? "Could not send code.");
+      const rawText = await res.text();
+      const data = parseApiBody(rawText);
+      if (!data) {
+        setTopError(
+          !res.ok
+            ? `Could not send code (${res.status}).`
+            : "Empty response from server — try again.",
+        );
         return;
       }
-      setPendingToken(data.pending_verification_token);
-      setPhoneMasked(data.phone_masked);
-      setFirstName(data.first_name ?? "");
+      if (!res.ok) {
+        setTopError(errorMessageFromBody(data, "Could not send code."));
+        return;
+      }
+      const token = data.pending_verification_token;
+      const masked = data.phone_masked;
+      if (typeof token !== "string" || typeof masked !== "string") {
+        setTopError("Invalid response from server.");
+        return;
+      }
+      setPendingToken(token);
+      setPhoneMasked(masked);
+      setFirstName(
+        typeof data.first_name === "string" ? data.first_name : "",
+      );
       setStep("code");
       setResendSec(30);
       setCode(["", "", "", "", "", ""]);
@@ -99,9 +137,19 @@ function LoginFlowInner() {
           code: code.join(""),
         }),
       });
-      const data = await res.json();
+      const rawText = await res.text();
+      const data = parseApiBody(rawText);
+      if (!data) {
+        setTopError(
+          !res.ok
+            ? `Verification failed (${res.status}).`
+            : "Empty response from server — try again.",
+        );
+        setCode(["", "", "", "", "", ""]);
+        return;
+      }
       if (!res.ok) {
-        setTopError(data?.error?.message ?? "Verification failed.");
+        setTopError(errorMessageFromBody(data, "Verification failed."));
         setCode(["", "", "", "", "", ""]);
         return;
       }
@@ -122,8 +170,13 @@ function LoginFlowInner() {
       body: JSON.stringify({ pending_verification_token: pendingToken }),
     });
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setTopError(data?.error?.message ?? "Could not resend.");
+      const t = await res.text();
+      const data = parseApiBody(t);
+      setTopError(
+        data
+          ? errorMessageFromBody(data, "Could not resend.")
+          : "Could not resend.",
+      );
       return;
     }
     setResendSec(30);
@@ -257,7 +310,7 @@ function LoginFlowInner() {
               type="tel"
               inputMode="tel"
               autoComplete="tel"
-              placeholder="+1 (555) 123-4567"
+              placeholder="+1 · or +91 for local/dev"
               className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-3 text-base outline-none ring-brand-500 focus:border-brand-500 focus:ring-2"
               value={phoneRaw}
               onChange={(e) => setPhoneRaw(e.target.value)}
@@ -265,7 +318,7 @@ function LoginFlowInner() {
             />
             {phoneRaw && !phoneE164 && (
               <p className="mt-1 text-sm text-red-700" role="status" aria-live="polite">
-                Enter a valid US or Canada mobile number.
+                Enter a valid mobile (US/CA; India +91 in local/dev if allowed).
               </p>
             )}
           </div>

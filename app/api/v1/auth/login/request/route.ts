@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { jsonError, jsonOk } from "@/lib/api-envelope";
-import { parseUsCaMobile, maskPhoneE164 } from "@/lib/phone";
+import { maskPhoneE164, parseSignupMobile } from "@/lib/phone";
 import { rateLimitHit } from "@/lib/rate-limit";
 import { verifyStartSms } from "@/lib/twilio";
 import { isMockIntegrations } from "@/lib/env";
@@ -44,11 +44,21 @@ export async function POST(req: NextRequest) {
     return jsonError("validation_error", "Invalid phone.", 422);
   }
 
-  const phone = parseUsCaMobile(parsed.data.phone_e164);
+  const phone = parseSignupMobile(parsed.data.phone_e164);
   if (!phone.ok) {
+    const message =
+      phone.reason === "not_in_allowlist"
+        ? "This number is not on DEV_PHONE_ALLOWLIST for this environment."
+        : phone.reason === "unsupported_region"
+          ? "US and Canada only in production."
+          : "Enter a valid mobile number.";
     return jsonError(
-      phone.reason === "unsupported_region" ? "unsupported_region" : "invalid_phone",
-      "Enter a valid US or Canada mobile number.",
+      phone.reason === "not_in_allowlist"
+        ? "phone_not_allowed"
+        : phone.reason === "unsupported_region"
+          ? "unsupported_region"
+          : "invalid_phone",
+      message,
       422,
     );
   }

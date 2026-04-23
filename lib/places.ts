@@ -80,7 +80,10 @@ export async function autocompletePlaces(
   }));
 }
 
-export async function placeDetails(placeId: string): Promise<PlaceDetails | null> {
+export async function placeDetails(
+  placeId: string,
+  sessionToken?: string,
+): Promise<PlaceDetails | null> {
   const key = process.env.GOOGLE_MAPS_API_KEY;
   if (!key) {
     const lat = 40.7359;
@@ -116,6 +119,9 @@ export async function placeDetails(placeId: string): Promise<PlaceDetails | null
   url.searchParams.set("place_id", placeId);
   url.searchParams.set("fields", fields);
   url.searchParams.set("key", key);
+  if (sessionToken?.trim()) {
+    url.searchParams.set("sessiontoken", sessionToken.trim());
+  }
 
   const res = await fetch(url.toString(), { next: { revalidate: 0 } });
   if (!res.ok) throw new Error("places_details_http");

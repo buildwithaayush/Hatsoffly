@@ -53,6 +53,17 @@ export function getAppTier(): AppTier {
   return "production";
 }
 
+/**
+ * User-facing hint when Postgres is unreachable (Prisma P1xxx / connection errors).
+ * On Vercel the fix is env vars; locally it is almost always `.env` or the DB host.
+ */
+export function databaseUnreachableHelpMessage(): string {
+  if (process.env.VERCEL) {
+    return "Database unreachable — open Vercel → Settings → Environment Variables and set DATABASE_URL for this environment (Preview uses Preview vars; Production uses Production vars). Then redeploy.";
+  }
+  return "Database unreachable locally — ensure `.env` in the project root sets `DATABASE_URL` to a reachable PostgreSQL URL, the database is running (Neon: project not suspended), and `npx prisma migrate deploy` has been applied. Check the terminal where `npm run dev` is running for the underlying error.";
+}
+
 /** Non-production banner for layout (server-safe). */
 export function getEnvironmentBanner(): { label: string; subtle: string } | null {
   const t = getAppTier();

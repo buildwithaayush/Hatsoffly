@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
+import { HeroFlowDemo } from "@/components/landing/hero-flow-demo";
 import { Reveal } from "@/components/landing/reveal";
 import { supportEmail, supportMailto } from "@/lib/support";
 
@@ -86,13 +88,24 @@ function HeroAurora() {
 
 export function LandingPage() {
   const reduce = useReducedMotion();
+  const pathname = usePathname();
 
   return (
-    <div className={`min-h-screen ${cream} ${ink}`}>
+    <div id="top" className={`min-h-screen scroll-smooth ${cream} ${ink}`}>
       {/* Nav */}
       <header className="sticky top-0 z-50 border-b border-black/[0.06] bg-[#F7F1EB]/85 backdrop-blur-xl">
         <div className="mx-auto flex h-[4.25rem] w-full max-w-7xl items-center justify-between px-5 lg:px-10">
-          <Link href="/" className="flex items-center gap-3" aria-label="Hatsoffly home">
+          <Link
+            href="/"
+            className="flex items-center gap-3"
+            aria-label="Hatsoffly home — scroll to top"
+            onClick={(e) => {
+              if (pathname === "/") {
+                e.preventDefault();
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }
+            }}
+          >
             <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#2A8C89] text-lg font-black text-white shadow-lg shadow-[#155E63]/15">
               H
             </span>
@@ -277,62 +290,8 @@ export function LandingPage() {
                 className="relative overflow-hidden rounded-[2rem] border border-[#155E63]/10 bg-white shadow-2xl shadow-[#155E63]/12"
               >
                 <div className="absolute inset-0 bg-gradient-to-br from-[#F7F1EB]/70 to-transparent" />
-                <div className="relative space-y-6 p-7 lg:p-9">
-                  <div className="flex items-center justify-between rounded-2xl border border-[#155E63]/10 bg-[#F7F1EB]/65 px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <span className="h-2.5 w-2.5 rounded-full bg-[#F28E63]" />
-                      <span className="h-2.5 w-2.5 rounded-full bg-amber-300" />
-                      <span className="h-2.5 w-2.5 rounded-full bg-emerald-300" />
-                    </div>
-                    <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#155E63]/45">
-                      Hatsoffly flow
-                    </span>
-                  </div>
-
-                  <div>
-                    <span className="text-[11px] font-bold uppercase tracking-[0.22em] text-[#F28E63]">
-                      Live flow
-                    </span>
-                    <h3 className="mt-3 text-2xl font-black leading-tight text-[#155E63] md:text-3xl">
-                      From trigger → text → outcome.
-                    </h3>
-                    <p className="mt-3 text-[15px] leading-relaxed text-[#155E63]/75">
-                      Every send is logged, every path measurable — no surprise one-stars.
-                    </p>
-                  </div>
-
-                  <div className="space-y-4 rounded-3xl bg-[#F7F1EB]/60 p-5 ring-1 ring-[#155E63]/10">
-                    <div className="rounded-2xl bg-white p-4 shadow-lg">
-                      <div className={`text-[11px] font-bold uppercase tracking-wide ${coralText}`}>
-                        Trigger
-                      </div>
-                      <p className="mt-2 text-[15px] font-semibold text-[#155E63]">
-                        Job completed · invoice paid
-                      </p>
-                    </div>
-                    <div className="flex justify-center">
-                      <span className="rounded-full bg-[#F28E63] px-4 py-1.5 text-[11px] font-bold text-white shadow-lg">
-                        SMS dispatched
-                      </span>
-                    </div>
-                    <div className="rounded-2xl bg-white p-5 shadow-lg">
-                      <p className={`text-[11px] font-bold uppercase tracking-wide ${coralText}`}>
-                        Customer sees
-                      </p>
-                      <p className={`mt-3 text-sm leading-relaxed ${inkMuted}`}>
-                        Quick tap — thumbs up sends them to Google. Thumbs down opens private
-                        feedback.
-                      </p>
-                      <div className="mt-4 flex gap-2">
-                        <span className={`rounded-full px-4 py-2 text-sm font-semibold text-white ${tealBtn}`}>
-                          👍 Great
-                        </span>
-                        <span className="rounded-full bg-[#F7F1EB] px-4 py-2 text-sm font-semibold text-[#155E63] ring-1 ring-[#155E63]/12">
-                          👎 Not quite
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+                <div className="relative p-7 lg:p-9">
+                  <HeroFlowDemo />
                 </div>
               </motion.div>
             </div>

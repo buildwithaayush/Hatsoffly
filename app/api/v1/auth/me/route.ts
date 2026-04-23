@@ -39,6 +39,17 @@ export async function GET() {
   const primary =
     business?.locations.find((l) => l.isPrimary) ?? business?.locations[0];
 
+  const preview = business
+    ? await prisma.previewLink.findFirst({
+        where: {
+          businessId: business.id,
+          expiresAt: { gt: new Date() },
+        },
+        orderBy: { createdAt: "desc" },
+        select: { token: true },
+      })
+    : null;
+
   return jsonOk({
     user: {
       id: user.id,
@@ -55,6 +66,14 @@ export async function GET() {
           status: business.status,
           template_voice: business.templateVoice,
           trial_ends_at: business.trialEndsAt?.toISOString() ?? null,
+          activation: {
+            tool: business.activationTool,
+            tool_other: business.activationToolOther,
+            trigger: business.activationTrigger,
+            trigger_other: business.activationTriggerOther,
+            setup_path: business.activationSetupPath,
+            completed_at: business.activationCompletedAt?.toISOString() ?? null,
+          },
         }
       : null,
     primary_location: primary
@@ -65,6 +84,12 @@ export async function GET() {
           google_review_url: primary.googleReviewUrl,
           timezone: primary.timezone,
           needs_gbp_assistance: primary.needsGbpAssistance,
+        }
+      : null,
+    preview_link: preview
+      ? {
+          token: preview.token,
+          customer_path: `/t/${preview.token}`,
         }
       : null,
   });
