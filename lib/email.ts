@@ -7,6 +7,7 @@ export async function sendTransactionalEmail(opts: {
   subject: string;
   text: string;
   html?: string;
+  attachments?: { filename: string; contentBase64: string; contentType?: string }[];
 }): Promise<void> {
   const key = process.env.RESEND_API_KEY?.trim();
   const from =
@@ -40,6 +41,11 @@ export async function sendTransactionalEmail(opts: {
         `<pre style="font-family:system-ui,sans-serif;white-space:pre-wrap">${escapeHtml(
           opts.text,
         )}</pre>`,
+      attachments: opts.attachments?.map((a) => ({
+        filename: a.filename,
+        content: a.contentBase64,
+        type: a.contentType ?? "application/octet-stream",
+      })),
     }),
     signal: AbortSignal.timeout(12_000),
   });

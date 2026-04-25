@@ -37,6 +37,7 @@ import {
   IconWrench,
 } from "@/components/dashboard/icons";
 import { OwnerAccountSettingsSection } from "@/components/dashboard/owner-account-settings";
+import { ReportsPanel } from "@/components/dashboard/reports-panel";
 
 type MeResponse = {
   is_account_owner?: boolean;
@@ -344,11 +345,10 @@ export function DashboardExperience() {
       q.delete("tab");
       pushPath(q);
     }
-    showToast("Reports export is on the roadmap.");
     window.requestAnimationFrame(() =>
-      document.getElementById("analytics")?.scrollIntoView({ behavior: "smooth" }),
+      document.getElementById("reports")?.scrollIntoView({ behavior: "smooth" }),
     );
-  }, [pushPath, searchParams, showToast, urlTab]);
+  }, [pushPath, searchParams, urlTab]);
 
   const goInventoryNav = useCallback(() => {
     setNavKey("inventory");
@@ -796,6 +796,8 @@ export function DashboardExperience() {
                 <p className="mt-1 text-sm text-amber-900/90">We emailed and texted the owner when it arrived.</p>
               </section>
             ) : null}
+
+            <ReportsPanel ownerEmail={u.email} />
 
             {activationDone && previewAbsUrl ? (
               <section className="rounded-2xl border border-emerald-200 bg-emerald-50/90 p-8 text-center">

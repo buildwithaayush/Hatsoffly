@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/v1/reports/dispatch?cycle=weekly",
+      "schedule": "0 9 * * 1"
+    },
+    {
+      "path": "/api/v1/reports/dispatch?cycle=monthly",
+      "schedule": "0 9 1 * *"
+    }
+  ]
+}

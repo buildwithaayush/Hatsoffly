@@ -100,6 +100,7 @@ model Business {
 
   locations Location[]
   roles     UserBusinessRole[]
+  reportDispatches ReportDispatch[]
 }
 
 model Location {
@@ -171,4 +172,21 @@ model PreviewFeedback {
   rating         Int
   privateMessage String?
   createdAt      DateTime @default(now())
+}
+
+/// Email dispatch bookkeeping for weekly/monthly report digests.
+model ReportDispatch {
+  id          String   @id @default(uuid())
+  businessId  String
+  cycle       String
+  periodStart DateTime
+  periodEnd   DateTime
+  sentTo      String
+  sentAt      DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, cycle, periodStart])
+  @@index([cycle, periodStart])
+  @@index([businessId, sentAt])
 }
