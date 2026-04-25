@@ -18,12 +18,41 @@ export function appUrl(): string {
  *   so staging/production never accidentally rely on mocks.
  */
 export function isMockIntegrations(): boolean {
+  const tier = getAppTier();
+  /** Development should mirror production behavior (real integrations). */
+  if (tier === "development" || tier === "production") {
+    return false;
+  }
+
   const raw = process.env.MOCK_INTEGRATIONS?.trim().toLowerCase();
   if (raw) {
     if (raw === "1" || raw === "true" || raw === "yes") return true;
     if (raw === "0" || raw === "false" || raw === "no") return false;
   }
-  return getAppTier() === "local";
+  return true;
+}
+
+/**
+ * Outbound SMS mocking can be controlled independently of auth verify mocks.
+ *
+ * Priority:
+ * 1) `MOCK_OUTBOUND_SMS` explicit flag wins.
+ * 2) If full Twilio Messaging credentials are present, default to real SMS.
+ * 3) Else fall back to `isMockIntegrations()`.
+ */
+export function isMockOutboundSms(): boolean {
+  const raw = process.env.MOCK_OUTBOUND_SMS?.trim().toLowerCase();
+  if (raw) {
+    if (raw === "1" || raw === "true" || raw === "yes") return true;
+    if (raw === "0" || raw === "false" || raw === "no") return false;
+  }
+  const hasMessagingCreds = Boolean(
+    process.env.TWILIO_ACCOUNT_SID?.trim() &&
+      process.env.TWILIO_AUTH_TOKEN?.trim() &&
+      process.env.TWILIO_MESSAGING_FROM?.trim(),
+  );
+  if (hasMessagingCreds) return false;
+  return isMockIntegrations();
 }
 
 /**

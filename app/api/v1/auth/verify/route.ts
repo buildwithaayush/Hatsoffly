@@ -8,7 +8,7 @@ import {
   sendTestSms,
   TWILIO_MESSAGING_NOT_CONFIGURED,
 } from "@/lib/twilio";
-import { signSessionToken, SESSION_COOKIE } from "@/lib/auth";
+import { sessionCookieMaxAgeSec, signSessionToken, SESSION_COOKIE } from "@/lib/auth";
 import { rateLimitHit } from "@/lib/rate-limit";
 import { isMockIntegrations } from "@/lib/env";
 import { newPreviewToken } from "@/lib/token";
@@ -141,7 +141,11 @@ export async function POST(req: NextRequest) {
 
       await tx.user.update({
         where: { id: user.id },
-        data: { phoneVerifiedAt: new Date(), lastLoginAt: new Date() },
+        data: {
+          phoneVerifiedAt: new Date(),
+          emailVerifiedAt: new Date(),
+          lastLoginAt: new Date(),
+        },
       });
 
       await tx.pendingVerification.delete({ where: { id: pvt } });
@@ -168,7 +172,7 @@ export async function POST(req: NextRequest) {
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: 60 * 60 * 24,
+    maxAge: sessionCookieMaxAgeSec(),
   });
 
   /** Background jobs (spec): Stripe, Slack, HubSpot — fire-and-forget logs in MVP */

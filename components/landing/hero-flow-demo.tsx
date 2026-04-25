@@ -26,7 +26,8 @@ export function HeroFlowDemo() {
   const [sceneIndex, setSceneIndex] = useState(0);
   const scene = SCENE_ORDER[sceneIndex];
 
-  const intervalMs = reduce ? 99999999 : 3800;
+  /** Time each scene stays visible before advancing (was 3.8s — slower for calmer hero). */
+  const intervalMs = reduce ? 99999999 : 6000;
 
   useEffect(() => {
     if (reduce) return;
@@ -90,7 +91,7 @@ export function HeroFlowDemo() {
             transition={
               reduce
                 ? { duration: 0 }
-                : { duration: 0.5, ease: [0.22, 1, 0.36, 1] }
+                : { duration: 0.72, ease: [0.22, 1, 0.36, 1] }
             }
             className="space-y-4"
           >
@@ -143,7 +144,7 @@ function TriggerScene({ reduced }: { reduced: boolean }) {
               }
         }
         transition={
-          reduced ? undefined : { duration: 2.4, repeat: Infinity, ease: "easeInOut" }
+          reduced ? undefined : { duration: 3.4, repeat: Infinity, ease: "easeInOut" }
         }
       >
         <div className={`text-[11px] font-bold uppercase tracking-wide ${coral}`}>
@@ -157,7 +158,7 @@ function TriggerScene({ reduced }: { reduced: boolean }) {
             className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 text-white"
             animate={reduced ? undefined : { scale: [1, 1.15, 1] }}
             transition={
-              reduced ? undefined : { duration: 1.6, repeat: Infinity, delay: 0.2 }
+              reduced ? undefined : { duration: 2.2, repeat: Infinity, delay: 0.2 }
             }
             aria-hidden
           >
@@ -174,7 +175,7 @@ function TriggerScene({ reduced }: { reduced: boolean }) {
             reduced ? undefined : { rotate: [0, 180, 360], scale: [1, 1.05, 1] }
           }
           transition={
-            reduced ? undefined : { duration: 3.5, repeat: Infinity, ease: "linear" }
+            reduced ? undefined : { duration: 5, repeat: Infinity, ease: "linear" }
           }
           aria-hidden
         />
@@ -182,7 +183,7 @@ function TriggerScene({ reduced }: { reduced: boolean }) {
           className="-ml-4 flex items-center justify-center rounded-full bg-[#F28E63] px-4 py-2 text-[11px] font-bold text-white shadow-lg"
           animate={reduced ? undefined : { y: [0, -4, 0] }}
           transition={
-            reduced ? undefined : { duration: 1.8, repeat: Infinity, ease: "easeInOut" }
+            reduced ? undefined : { duration: 2.5, repeat: Infinity, ease: "easeInOut" }
           }
         >
           Queue → SMS
@@ -202,7 +203,7 @@ function SmsScene({ reduced }: { reduced: boolean }) {
         initial={reduced ? undefined : { opacity: 0, y: 24, scale: 0.96 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={
-          reduced ? undefined : { delay: 0.12, duration: 0.55, ease: [0.22, 1, 0.36, 1] }
+          reduced ? undefined : { delay: 0.12, duration: 0.7, ease: [0.22, 1, 0.36, 1] }
         }
         className="ml-auto max-w-[92%] rounded-2xl rounded-br-md bg-white px-4 py-3 shadow-xl ring-1 ring-[#155E63]/10"
       >
@@ -218,7 +219,7 @@ function SmsScene({ reduced }: { reduced: boolean }) {
             reduced ? undefined : { opacity: [0.65, 1, 0.65] }
           }
           transition={
-            reduced ? undefined : { duration: 1.8, repeat: Infinity }
+            reduced ? undefined : { duration: 2.5, repeat: Infinity }
           }
         >
           Tap to rate →
@@ -240,9 +241,9 @@ function SmsScene({ reduced }: { reduced: boolean }) {
               reduced ? undefined : { opacity: [0.3, 1, 0.3], scale: [1, 1.2, 1] }
             }
             transition={{
-              duration: 1.2,
+              duration: 1.65,
               repeat: Infinity,
-              delay: i * 0.2,
+              delay: i * 0.25,
               ease: "easeInOut",
             }}
           />
@@ -278,7 +279,7 @@ function FeedbackScene({ reduced }: { reduced: boolean }) {
                   }
             }
             transition={
-              reduced ? undefined : { duration: 2.2, repeat: Infinity, ease: "easeInOut" }
+              reduced ? undefined : { duration: 3.1, repeat: Infinity, ease: "easeInOut" }
             }
           >
             👍 Great
@@ -339,7 +340,7 @@ function GoogleScene({ reduced }: { reduced: boolean }) {
           reduced ? undefined : { y: [0, -3, 0] }
         }
         transition={
-          reduced ? undefined : { duration: 2.5, repeat: Infinity, ease: "easeInOut" }
+          reduced ? undefined : { duration: 3.4, repeat: Infinity, ease: "easeInOut" }
         }
       >
         <p className={`text-[11px] font-bold uppercase tracking-wide ${coral}`}>
@@ -352,7 +353,7 @@ function GoogleScene({ reduced }: { reduced: boolean }) {
             reduced ? undefined : { opacity: [0.85, 1, 0.85] }
           }
           transition={
-            reduced ? undefined : { duration: 1.6, repeat: Infinity }
+            reduced ? undefined : { duration: 2.2, repeat: Infinity }
           }
           aria-hidden
         />

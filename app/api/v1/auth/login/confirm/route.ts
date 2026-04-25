@@ -4,9 +4,10 @@ import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { jsonError, jsonOk } from "@/lib/api-envelope";
 import { verifyCheckCode } from "@/lib/twilio";
-import { signSessionToken, SESSION_COOKIE } from "@/lib/auth";
+import { sessionCookieMaxAgeSec, signSessionToken, SESSION_COOKIE } from "@/lib/auth";
 import { rateLimitHit } from "@/lib/rate-limit";
 import { isMockIntegrations } from "@/lib/env";
+import { jsonFromUnknownRouteError } from "@/lib/route-error-response";
 
 export const runtime = "nodejs";
 
@@ -16,6 +17,18 @@ const bodySchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  try {
+    return await loginConfirmPost(req);
+  } catch (e) {
+    return jsonFromUnknownRouteError(e, {
+      logPrefix: "[login/confirm] unhandled",
+      userHint:
+        "Could not finish signing in. Check DATABASE_URL, JWT_SECRET, and server logs for [login/confirm].",
+    });
+  }
+}
+
+async function loginConfirmPost(req: NextRequest) {
   let raw: unknown;
   try {
     raw = await req.json();
@@ -116,7 +129,7 @@ export async function POST(req: NextRequest) {
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: 60 * 60 * 24,
+    maxAge: sessionCookieMaxAgeSec(),
   });
 
   return jsonOk({

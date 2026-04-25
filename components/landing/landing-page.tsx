@@ -322,7 +322,7 @@ export function LandingPage() {
                 Everything you need — without another dashboard to babysit.
               </h2>
               <p className={`mt-5 max-w-2xl text-lg leading-relaxed ${inkMuted}`}>
-                Opinionated defaults, concierge paths when your stack needs wiring.
+                No complicated setup—you focus on the work, we handle the follow-up.
               </p>
             </Reveal>
 

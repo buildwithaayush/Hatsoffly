@@ -2,10 +2,11 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { jsonError, jsonOk } from "@/lib/api-envelope";
+import { databaseUnreachableHelpMessage, isMockIntegrations } from "@/lib/env";
+import { jsonFromUnknownRouteError } from "@/lib/route-error-response";
 import { maskPhoneE164, parseSignupMobile } from "@/lib/phone";
 import { rateLimitHit } from "@/lib/rate-limit";
-import { verifyStartSms } from "@/lib/twilio";
-import { isMockIntegrations } from "@/lib/env";
+import { isTwilioVerifyConfigured, verifyStartSms } from "@/lib/twilio";
 import { newPendingVerificationToken } from "@/lib/token";
 
 export const runtime = "nodejs";
@@ -26,6 +27,18 @@ function firstToken(name: string) {
 }
 
 export async function POST(req: NextRequest) {
+  try {
+    return await loginRequestPost(req);
+  } catch (e) {
+    return jsonFromUnknownRouteError(e, {
+      logPrefix: "[login/request] unhandled",
+      userHint:
+        "Could not start SMS login. Check server logs, DATABASE_URL, and Twilio Verify (or MOCK_INTEGRATIONS=1 locally).",
+    });
+  }
+}
+
+async function loginRequestPost(req: NextRequest) {
   const ip = clientIp(req);
   const rlIp = rateLimitHit("login:ip", ip, 10, 60 * 60 * 1000);
   if (!rlIp.ok) {
@@ -68,12 +81,26 @@ export async function POST(req: NextRequest) {
     return jsonError("rate_limited", `Too many attempts. Try again in ${rlPhone.retryAfterSec}s.`, 429);
   }
 
-  const user = await prisma.user.findFirst({
-    where: {
-      phoneE164: phone.e164,
-      phoneVerifiedAt: { not: null },
-    },
-  });
+  if (!isMockIntegrations() && !isTwilioVerifyConfigured()) {
+    return jsonError(
+      "twilio_unavailable",
+      "SMS login is not configured on this server. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_VERIFY_SERVICE_SID. For local development without Twilio, set MOCK_INTEGRATIONS=1 in .env (verification code defaults to 123456).",
+      503,
+    );
+  }
+
+  let user;
+  try {
+    user = await prisma.user.findFirst({
+      where: {
+        phoneE164: phone.e164,
+        phoneVerifiedAt: { not: null },
+      },
+    });
+  } catch (e) {
+    console.error("[login/request] user lookup", e);
+    return jsonError("database_error", databaseUnreachableHelpMessage(), 503);
+  }
 
   if (!user) {
     return jsonError(
@@ -83,15 +110,21 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const membership = await prisma.userBusinessRole.findFirst({
-    where: { userId: user.id },
-    include: {
-      business: { include: { locations: true } },
-    },
-    orderBy: { createdAt: "asc" },
-  });
+  let membership;
+  try {
+    membership = await prisma.userBusinessRole.findFirst({
+      where: { userId: user.id },
+      include: {
+        business: { include: { locations: true } },
+      },
+      orderBy: { createdAt: "asc" },
+    });
+  } catch (e) {
+    console.error("[login/request] membership lookup", e);
+    return jsonError("database_error", databaseUnreachableHelpMessage(), 503);
+  }
 
-  if (!membership) {
+  if (!membership?.business) {
     return jsonError("downstream_unavailable", "Account is incomplete. Contact support.", 503);
   }
 
@@ -109,43 +142,51 @@ export async function POST(req: NextRequest) {
     ? process.env.MOCK_VERIFY_CODE ?? "123456"
     : undefined;
 
-  await prisma.pendingVerification.create({
-    data: {
-      id: pvt,
-      userId: user.id,
-      businessId: membership.businessId,
-      locationId: primaryLoc.id,
-      purpose: "login",
-      mockCode,
-      expiresAt,
-    },
-  });
-
   try {
-    const r = await verifyStartSms(phone.e164);
-    if (r.sid) {
-      await prisma.pendingVerification.update({
-        where: { id: pvt },
-        data: { verifySid: r.sid },
-      });
-    }
-  } catch {
+    await prisma.pendingVerification.create({
+      data: {
+        id: pvt,
+        userId: user.id,
+        businessId: membership.businessId,
+        locationId: primaryLoc.id,
+        purpose: "login",
+        mockCode,
+        expiresAt,
+      },
+    });
+  } catch (e) {
+    console.error("[login/request] pending create", e);
+    return jsonError("database_error", databaseUnreachableHelpMessage(), 503);
+  }
+
+  let verifyOk = false;
+  for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const r = await verifyStartSms(phone.e164);
+      verifyOk = true;
       if (r.sid) {
-        await prisma.pendingVerification.update({
-          where: { id: pvt },
-          data: { verifySid: r.sid },
-        });
+        await prisma.pendingVerification
+          .update({
+            where: { id: pvt },
+            data: { verifySid: r.sid },
+          })
+          .catch((err) => {
+            console.warn("[login/request] could not persist verifySid (code may still work)", err);
+          });
       }
-    } catch {
-      await prisma.pendingVerification.delete({ where: { id: pvt } }).catch(() => {});
-      return jsonError(
-        "twilio_unavailable",
-        "We're having trouble sending your code. Try again in a minute.",
-        503,
-      );
+      break;
+    } catch (e) {
+      console.error(`[login/request] verifyStartSms attempt ${attempt + 1}`, e);
     }
+  }
+
+  if (!verifyOk) {
+    await prisma.pendingVerification.delete({ where: { id: pvt } }).catch(() => {});
+    return jsonError(
+      "twilio_unavailable",
+      "We're having trouble sending your code. Check Twilio Verify settings and try again in a minute.",
+      503,
+    );
   }
 
   return jsonOk(

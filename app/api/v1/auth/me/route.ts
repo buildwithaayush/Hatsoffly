@@ -1,9 +1,24 @@
 import { cookies } from "next/headers";
+import { BusinessRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { jsonError, jsonOk } from "@/lib/api-envelope";
-import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
+import {
+  SESSION_COOKIE,
+  sessionCookieMaxAgeSec,
+  sessionRollingRenewThresholdSec,
+  signSessionToken,
+  verifySessionTokenWithExpiry,
+} from "@/lib/auth";
+import { appUrl } from "@/lib/env";
+import { interpolateTestSms } from "@/lib/templates";
+import { formatActivationTrigger } from "@/lib/format-activation";
 
 export const runtime = "nodejs";
+
+function firstNameToken(full: string): string {
+  const t = full.trim().split(/\s+/)[0];
+  return t || full;
+}
 
 export async function GET() {
   const cookieStore = await cookies();
@@ -12,9 +27,29 @@ export async function GET() {
     return jsonError("unauthorized", "Not signed in.", 401);
   }
 
-  const session = await verifySessionToken(raw);
-  if (!session) {
+  const verified = await verifySessionTokenWithExpiry(raw);
+  if (!verified) {
     return jsonError("unauthorized", "Session expired.", 401);
+  }
+
+  const session = verified.claims;
+  const nowSec = Math.floor(Date.now() / 1000);
+  const remainingSec = verified.exp - nowSec;
+  const renewBelow = sessionRollingRenewThresholdSec();
+  if (remainingSec > 0 && remainingSec <= renewBelow) {
+    const newToken = await signSessionToken({
+      sub: session.sub,
+      bid: session.bid,
+      lid: session.lid,
+      role: session.role,
+    });
+    cookieStore.set(SESSION_COOKIE, newToken, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: sessionCookieMaxAgeSec(),
+    });
   }
 
   const user = await prisma.user.findUnique({
@@ -60,12 +95,15 @@ export async function GET() {
       }
     | null = null;
 
+  let previewTokenList: string[] = [];
+
   if (business) {
     const tokens = await prisma.previewLink.findMany({
       where: { businessId: business.id },
       select: { token: true },
     });
-    const tokenList = tokens.map((t) => t.token);
+    previewTokenList = tokens.map((t) => t.token);
+    const tokenList = previewTokenList;
     const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
     const empty = tokenList.length === 0;
@@ -125,13 +163,67 @@ export async function GET() {
     };
   }
 
+  const locations = business
+    ? business.locations.map((l) => ({
+        id: l.id,
+        name: l.name,
+        formatted_address: l.formattedAddress,
+        is_primary: l.isPrimary,
+        active: l.active,
+      }))
+    : [];
+
+  const teamRoles = business
+    ? await prisma.userBusinessRole.findMany({
+        where: { businessId: business.id },
+        include: {
+          user: { select: { id: true, fullName: true, email: true } },
+        },
+        orderBy: { createdAt: "asc" },
+      })
+    : [];
+
+  let feedback_avg_rating: number | null = null;
+  let sms_preview_sample: string | null = null;
+  let timing_summary: string | null = null;
+
+  if (business && previewTokenList.length > 0) {
+    const agg = await prisma.previewFeedback.aggregate({
+      where: { previewToken: { in: previewTokenList } },
+      _avg: { rating: true },
+    });
+    if (agg._avg.rating != null) {
+      feedback_avg_rating = Math.round(Number(agg._avg.rating) * 10) / 10;
+    }
+  }
+
+  if (business) {
+    try {
+      sms_preview_sample = interpolateTestSms({
+        voice: business.templateVoice,
+        variant: "location_only",
+        custFirst: firstNameToken(user.fullName),
+        bizName: business.name,
+        shortLink: `${appUrl().replace(/\/$/, "")}/t/···`,
+      });
+    } catch {
+      sms_preview_sample = `Hi ${firstNameToken(user.fullName)} — quick moment about today's visit from ${business.name}. Tap: ${appUrl().replace(/\/$/, "")}/t/···`;
+    }
+    timing_summary = formatActivationTrigger(
+      business.activationTrigger,
+      business.activationTriggerOther,
+    );
+  }
+
   return jsonOk({
+    is_account_owner: session.role === BusinessRole.owner,
     user: {
       id: user.id,
       email: user.email,
       full_name: user.fullName,
       phone_e164: user.phoneE164,
       phone_verified_at: user.phoneVerifiedAt?.toISOString() ?? null,
+      email_verified_at: user.emailVerifiedAt?.toISOString() ?? null,
     },
     business: business
       ? {
@@ -168,5 +260,15 @@ export async function GET() {
         }
       : null,
     feedback_stats,
+    locations,
+    team: teamRoles.map((t) => ({
+      user_id: t.userId,
+      full_name: t.user.fullName,
+      email: t.user.email,
+      role: t.role,
+    })),
+    feedback_avg_rating,
+    sms_preview_sample,
+    timing_summary,
   });
 }

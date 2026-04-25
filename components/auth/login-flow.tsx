@@ -46,6 +46,7 @@ function LoginFlowInner() {
   const [firstName, setFirstName] = useState("");
   const [code, setCode] = useState(["", "", "", "", "", ""]);
   const codeRefs = useRef<Array<HTMLInputElement | null>>([]);
+  const autoSubmittedCodeRef = useRef<string | null>(null);
   const [resendSec, setResendSec] = useState(30);
 
   const phoneE164 = useMemo(() => {
@@ -82,22 +83,37 @@ function LoginFlowInner() {
     if (d && i < 5) codeRefs.current[i + 1]?.focus();
   };
 
+  const onPasteCode = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const t = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+    if (t.length === 6) {
+      e.preventDefault();
+      setCode(t.split(""));
+      codeRefs.current[5]?.focus();
+    }
+  };
+
   const onRequestCode = async () => {
     setTopError(null);
     if (!phoneE164) return;
     setSubmitting(true);
     try {
-      const res = await fetch("/api/v1/auth/login/request", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone_e164: phoneE164 }),
-      });
+      let res: Response;
+      try {
+        res = await fetch("/api/v1/auth/login/request", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone_e164: phoneE164 }),
+        });
+      } catch {
+        setTopError("Could not reach the server. Check your connection and that the app is running.");
+        return;
+      }
       const rawText = await res.text();
       const data = parseApiBody(rawText);
       if (!data) {
         setTopError(
           !res.ok
-            ? `Could not send code (${res.status}).`
+            ? `Could not send code (${res.status}). If this persists, open DevTools → Network and check the response body.`
             : "Empty response from server — try again.",
         );
         return;
@@ -129,20 +145,27 @@ function LoginFlowInner() {
     setTopError(null);
     setSubmitting(true);
     try {
-      const res = await fetch("/api/v1/auth/login/confirm", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          pending_verification_token: pendingToken,
-          code: code.join(""),
-        }),
-      });
+      let res: Response;
+      try {
+        res = await fetch("/api/v1/auth/login/confirm", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            pending_verification_token: pendingToken,
+            code: code.join(""),
+          }),
+        });
+      } catch {
+        setTopError("Could not reach the server. Check your connection and try again.");
+        setCode(["", "", "", "", "", ""]);
+        return;
+      }
       const rawText = await res.text();
       const data = parseApiBody(rawText);
       if (!data) {
         setTopError(
           !res.ok
-            ? `Verification failed (${res.status}).`
+            ? `Verification failed (${res.status}). Check the Network tab for details.`
             : "Empty response from server — try again.",
         );
         setCode(["", "", "", "", "", ""]);
@@ -160,6 +183,19 @@ function LoginFlowInner() {
       setSubmitting(false);
     }
   };
+
+  useEffect(() => {
+    if (step !== "code" || !codeDone) {
+      autoSubmittedCodeRef.current = null;
+      return;
+    }
+    if (submitting) return;
+    const joined = code.join("");
+    if (joined.length !== 6) return;
+    if (autoSubmittedCodeRef.current === joined) return;
+    autoSubmittedCodeRef.current = joined;
+    void onConfirm();
+  }, [step, codeDone, submitting, code, onConfirm]);
 
   const onResend = async () => {
     if (resendSec > 0) return;
@@ -208,7 +244,7 @@ function LoginFlowInner() {
             </p>
           )}
 
-          <div className="mt-8 flex justify-center gap-2 sm:gap-3">
+          <div className="mt-8 flex justify-center gap-2 sm:gap-3" onPaste={onPasteCode}>
             {code.map((d, i) => (
               <input
                 key={i}

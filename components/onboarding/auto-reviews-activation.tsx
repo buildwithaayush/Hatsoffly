@@ -48,20 +48,23 @@ type Props = {
 
 type Prediction = { place_id: string; description: string };
 
-type ReviewLinkMode = "places" | "manual";
-
 function GoogleReviewLinkStep({
   googleReviewUrl,
   setGoogleReviewUrl,
+  businessName,
+  setBusinessName,
 }: {
   googleReviewUrl: string;
   setGoogleReviewUrl: (value: string) => void;
+  businessName: string;
+  setBusinessName: (value: string) => void;
 }) {
   const placesSearchId = useId();
   const manualUrlId = useId();
+  const businessNameId = useId();
   const placesWrapRef = useRef<HTMLDivElement>(null);
+  const clearSearchTimeoutRef = useRef<number | null>(null);
 
-  const [mode, setMode] = useState<ReviewLinkMode>("places");
   const [placesQuery, setPlacesQuery] = useState("");
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [openPlaces, setOpenPlaces] = useState(false);
@@ -73,6 +76,7 @@ function GoogleReviewLinkStep({
   } | null>(null);
   const [resolvedName, setResolvedName] = useState<string | null>(null);
   const [resolvingDetails, setResolvingDetails] = useState(false);
+  const [flashLinkedFields, setFlashLinkedFields] = useState(false);
 
   const placesSession = useMemo(() => {
     if (typeof window === "undefined") return "";
@@ -95,7 +99,14 @@ function GoogleReviewLinkStep({
   }, []);
 
   useEffect(() => {
-    if (mode !== "places") return;
+    return () => {
+      if (clearSearchTimeoutRef.current !== null) {
+        window.clearTimeout(clearSearchTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (
       placesPick &&
       placesQuery.trim() === placesPick.description.trim()
@@ -146,10 +157,11 @@ function GoogleReviewLinkStep({
       }
     }, 220);
     return () => clearTimeout(t);
-  }, [mode, placesQuery, placesPick, placesSession]);
+  }, [placesQuery, placesPick, placesSession]);
 
   async function onPickPlace(p: Prediction) {
     setPlacesPick({ id: p.place_id, description: p.description });
+    /** Keep selected label briefly, then clear so it doesn't feel like a glitch. */
     setPlacesQuery(p.description);
     setOpenPlaces(false);
     setPredictions([]);
@@ -171,19 +183,33 @@ function GoogleReviewLinkStep({
           data?.error?.message ?? "Could not load that place from Google Maps.",
         );
         setGoogleReviewUrl("");
+        setBusinessName("");
         return;
       }
       const url = data.google_review_url?.trim();
       if (url) {
         setGoogleReviewUrl(url);
-        setResolvedName(data.name ?? p.description);
+        const resolved = (data.name ?? p.description).trim();
+        setResolvedName(resolved);
+        setBusinessName(resolved);
+        setFlashLinkedFields(true);
+        window.setTimeout(() => setFlashLinkedFields(false), 1600);
+        if (clearSearchTimeoutRef.current !== null) {
+          window.clearTimeout(clearSearchTimeoutRef.current);
+        }
+        clearSearchTimeoutRef.current = window.setTimeout(() => {
+          setPlacesQuery("");
+          clearSearchTimeoutRef.current = null;
+        }, 1400);
       } else {
         setPlacesError("No review link could be built for this place.");
         setGoogleReviewUrl("");
+        setBusinessName("");
       }
     } catch {
       setPlacesError("Could not load place details.");
       setGoogleReviewUrl("");
+      setBusinessName("");
     } finally {
       setResolvingDetails(false);
     }
@@ -197,156 +223,141 @@ function GoogleReviewLinkStep({
         Search for your business below and we&apos;ll insert the correct review
         link — or paste a link from your Profile if you already have one.
       </p>
+      {googleReviewUrl.trim() ? (
+        <p className="rounded-lg border border-brand-200 bg-brand-50/70 px-3 py-2 text-xs text-brand-900">
+          We prefilled this from the business you selected at signup. You can keep it, paste a different link, or
+          search Google Maps again.
+        </p>
+      ) : null}
 
-      <div className="flex rounded-xl border border-slate-200 bg-slate-50 p-1">
-        <button
-          type="button"
-          onClick={() => {
-            setMode("places");
-            setPlacesError(null);
-          }}
-          className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold transition ${
-            mode === "places"
-              ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200"
-              : "text-slate-600 hover:text-slate-900"
-          }`}
+      <div ref={placesWrapRef} className="relative z-20 space-y-2">
+        <label
+          htmlFor={placesSearchId}
+          className="block text-sm font-semibold text-slate-900"
         >
-          Search Google Maps
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setMode("manual");
-            setOpenPlaces(false);
-            setPlacesError(null);
+          Find your business (optional)
+        </label>
+        <input
+          id={placesSearchId}
+          type="text"
+          autoComplete="off"
+          placeholder="Search Google Maps to auto-fill link"
+          value={placesQuery}
+          disabled={resolvingDetails}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (clearSearchTimeoutRef.current !== null) {
+              window.clearTimeout(clearSearchTimeoutRef.current);
+              clearSearchTimeoutRef.current = null;
+            }
+            setPlacesQuery(v);
+            if (
+              placesPick &&
+              v.trim() !== placesPick.description.trim()
+            ) {
+              setPlacesPick(null);
+              setResolvedName(null);
+            }
           }}
-          className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold transition ${
-            mode === "manual"
-              ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200"
-              : "text-slate-600 hover:text-slate-900"
-          }`}
-        >
-          Paste my link
-        </button>
+          onFocus={() => {
+            if (predictions.length > 0) setOpenPlaces(true);
+          }}
+          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-sans text-base text-slate-900 outline-none ring-brand-500 placeholder:text-slate-400 focus:border-brand-500 focus:ring-2 disabled:opacity-60"
+        />
+        {resolvingDetails ? (
+          <p className="text-xs text-slate-500">Fetching review link…</p>
+        ) : null}
+        {placesError ? (
+          <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
+            {placesError}
+          </p>
+        ) : null}
+        {placesEmptyHint && !placesError ? (
+          <p className="text-xs text-slate-500">
+            No matches — keep typing business name + city, or paste your review link directly below.
+          </p>
+        ) : null}
+        {openPlaces && predictions.length > 0 ? (
+          <ul className="absolute left-0 right-0 top-full z-30 mt-1 max-h-56 overflow-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+            {predictions.map((p) => (
+              <li key={p.place_id}>
+                <button
+                  type="button"
+                  className="w-full px-4 py-3 text-left text-sm text-slate-900 hover:bg-slate-50"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => onPickPlace(p)}
+                >
+                  {p.description}
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {resolvedName && googleReviewUrl.trim() ? (
+          <div className="rounded-xl border border-brand-200 bg-brand-50/60 px-4 py-3 text-sm text-slate-800">
+            <span className="font-semibold text-brand-900">
+              Review link ready
+            </span>
+            <span className="text-slate-600">
+              {" "}
+              — {resolvedName}. You can search again or edit the link manually below.
+            </span>
+          </div>
+        ) : null}
       </div>
 
-      {mode === "places" ? (
-        <div ref={placesWrapRef} className="relative z-20 space-y-2">
-          <label
-            htmlFor={placesSearchId}
-            className="block text-sm font-semibold text-slate-900"
-          >
-            Find your business
-          </label>
-          <input
-            id={placesSearchId}
-            type="text"
-            autoComplete="off"
-            placeholder="Start typing your business name…"
-            value={placesQuery}
-            disabled={resolvingDetails}
-            onChange={(e) => {
-              const v = e.target.value;
-              setPlacesQuery(v);
-              if (
-                placesPick &&
-                v.trim() !== placesPick.description.trim()
-              ) {
-                setPlacesPick(null);
-                setResolvedName(null);
-                setGoogleReviewUrl("");
-              }
-            }}
-            onFocus={() => {
-              if (predictions.length > 0) setOpenPlaces(true);
-            }}
-            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-sans text-base text-slate-900 outline-none ring-brand-500 placeholder:text-slate-400 focus:border-brand-500 focus:ring-2 disabled:opacity-60"
-          />
-          {resolvingDetails ? (
-            <p className="text-xs text-slate-500">Fetching review link…</p>
-          ) : null}
-          {placesError ? (
-            <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
-              {placesError}
-            </p>
-          ) : null}
-          {placesEmptyHint && !placesError ? (
-            <p className="text-xs text-slate-500">
-              No matches — try your city or zip, or switch to{" "}
-              <button
-                type="button"
-                className="font-semibold text-brand-700 underline-offset-2 hover:underline"
-                onClick={() => setMode("manual")}
-              >
-                Paste my link
-              </button>
-              .
-            </p>
-          ) : null}
-          {openPlaces && predictions.length > 0 ? (
-            <ul className="absolute left-0 right-0 top-full z-30 mt-1 max-h-56 overflow-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
-              {predictions.map((p) => (
-                <li key={p.place_id}>
-                  <button
-                    type="button"
-                    className="w-full px-4 py-3 text-left text-sm text-slate-900 hover:bg-slate-50"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => onPickPlace(p)}
-                  >
-                    {p.description}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          {resolvedName && googleReviewUrl.trim() ? (
-            <div className="rounded-xl border border-brand-200 bg-brand-50/60 px-4 py-3 text-sm text-slate-800">
-              <span className="font-semibold text-brand-900">
-                Review link ready
-              </span>
-              <span className="text-slate-600">
-                {" "}
-                — {resolvedName}. You can search again to change it.
-              </span>
-            </div>
-          ) : null}
-        </div>
-      ) : (
-        <div>
-          <label
-            htmlFor={manualUrlId}
-            className="mb-2 block text-sm font-semibold text-slate-900"
-          >
-            Review link URL
-          </label>
-          <div className="relative">
-            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-500">
-              <IconLink className="h-5 w-5" />
-            </div>
-            <input
-              id={manualUrlId}
-              type="url"
-              inputMode="url"
-              autoComplete="url"
-              placeholder="https://g.page/r/… or Maps short link"
-              value={googleReviewUrl}
-              onChange={(e) => setGoogleReviewUrl(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-white py-4 pl-12 pr-4 font-sans text-base text-slate-900 outline-none ring-brand-500 placeholder:text-slate-400 focus:border-brand-500 focus:ring-2"
-            />
+      <div>
+        <label
+          htmlFor={manualUrlId}
+          className="mb-2 block text-sm font-semibold text-slate-900"
+        >
+          Review link URL
+        </label>
+        <div className="relative">
+          <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-500">
+            <IconLink className="h-5 w-5" />
           </div>
-          <p className="mt-2 text-xs leading-relaxed text-slate-500">
-            From{" "}
-            <strong className="font-medium text-slate-700">
-              Google Business Profile
-            </strong>
-            : open your business → Ask for reviews → copy the link. Short{" "}
-            <code className="rounded bg-slate-100 px-1 py-0.5 text-[11px]">
-              g.page
-            </code>{" "}
-            links work too.
-          </p>
+          <input
+            id={manualUrlId}
+            type="url"
+            inputMode="url"
+            autoComplete="url"
+            placeholder="https://g.page/r/… or Maps short link"
+            value={googleReviewUrl}
+            onChange={(e) => setGoogleReviewUrl(e.target.value)}
+            className={`w-full rounded-xl border bg-white py-4 pl-12 pr-4 font-sans text-base text-slate-900 outline-none ring-brand-500 placeholder:text-slate-400 focus:border-brand-500 focus:ring-2 ${
+              flashLinkedFields
+                ? "border-brand-400 ring-2 ring-brand-200 transition-all"
+                : "border-slate-200"
+            }`}
+          />
         </div>
-      )}
+        <p className="mt-2 text-xs leading-relaxed text-slate-500">
+          Paste from{" "}
+          <strong className="font-medium text-slate-700">
+            Google Business Profile
+          </strong>{" "}
+          (Ask for reviews). You can also search above to auto-fill this field.
+        </p>
+      </div>
+
+      <div>
+        <label htmlFor={businessNameId} className="mb-2 block text-sm font-semibold text-slate-900">
+          Business name (from selected link)
+        </label>
+        <input
+          id={businessNameId}
+          type="text"
+          value={businessName}
+          onChange={(e) => setBusinessName(e.target.value)}
+          placeholder="Will appear after selecting a business link"
+          className={`w-full rounded-xl border bg-white px-4 py-3 font-sans text-base text-slate-900 outline-none ring-brand-500 focus:border-brand-500 focus:ring-2 ${
+            flashLinkedFields
+              ? "border-brand-400 ring-2 ring-brand-200 transition-all"
+              : "border-slate-200"
+          }`}
+        />
+      </div>
     </div>
   );
 }
@@ -366,6 +377,36 @@ export function AutoReviewsActivation({ onDashboard }: Props) {
   const [conciergeSubmitted, setConciergeSubmitted] = useState(false);
   const [persistError, setPersistError] = useState<string | null>(null);
   const [isPersisting, setIsPersisting] = useState(false);
+  const [prefillAttempted, setPrefillAttempted] = useState(false);
+  const [googleBusinessName, setGoogleBusinessName] = useState("");
+
+  useEffect(() => {
+    if (prefillAttempted) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/v1/auth/me", { cache: "no-store" });
+        const data = (await res.json().catch(() => ({}))) as {
+          primary_location?: { name?: string; google_review_url?: string | null };
+        };
+        const prefill = data?.primary_location?.google_review_url?.trim();
+        const prefillName = data?.primary_location?.name?.trim() ?? "";
+        if (!cancelled && prefill && !googleReviewUrl.trim()) {
+          setGoogleReviewUrl(prefill);
+        }
+        if (!cancelled && prefillName && !googleBusinessName.trim()) {
+          setGoogleBusinessName(prefillName);
+        }
+      } catch {
+        /* ignore prefill failures; user can still paste/search manually */
+      } finally {
+        if (!cancelled) setPrefillAttempted(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [prefillAttempted, googleReviewUrl, googleBusinessName]);
 
   const step1Complete = useMemo(() => {
     if (selectedTool === null) return false;
@@ -711,6 +752,8 @@ export function AutoReviewsActivation({ onDashboard }: Props) {
               <GoogleReviewLinkStep
                 googleReviewUrl={googleReviewUrl}
                 setGoogleReviewUrl={setGoogleReviewUrl}
+                businessName={googleBusinessName}
+                setBusinessName={setGoogleBusinessName}
               />
             </section>
 

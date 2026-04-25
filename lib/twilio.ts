@@ -1,4 +1,4 @@
-import { isMockIntegrations, appUrl } from "./env";
+import { isMockIntegrations, isMockOutboundSms, appUrl } from "./env";
 import type { TemplateVoice } from "@prisma/client";
 import { interpolateTestSms, type TemplateVariant } from "@/lib/templates";
 
@@ -56,7 +56,20 @@ export async function twilioLookupLineType(_e164: string): Promise<
   return "unknown";
 }
 
-export async function verifyStartSms(toE164: string): Promise<{ sid?: string }> {
+/** True when real Twilio Verify API calls can be made (ignored when {@link isMockIntegrations} is on). */
+export function isTwilioVerifyConfigured(): boolean {
+  return Boolean(
+    process.env.TWILIO_VERIFY_SERVICE_SID?.trim() &&
+      process.env.TWILIO_ACCOUNT_SID?.trim() &&
+      process.env.TWILIO_AUTH_TOKEN?.trim(),
+  );
+}
+
+/** Start Twilio Verify for SMS or email (`To` is E.164 or email address). */
+export async function verifyStart(
+  to: string,
+  channel: "sms" | "email",
+): Promise<{ sid?: string }> {
   if (isMockIntegrations()) return { sid: "VE_mock" };
   const sid = process.env.TWILIO_VERIFY_SERVICE_SID;
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
@@ -65,7 +78,7 @@ export async function verifyStartSms(toE164: string): Promise<{ sid?: string }> 
     throw new Error("twilio_verify_not_configured");
   }
 
-  const body = new URLSearchParams({ To: toE164, Channel: "sms" });
+  const body = new URLSearchParams({ To: to, Channel: channel });
   const res = await fetch(
     `https://verify.twilio.com/v2/Services/${sid}/Verifications`,
     {
@@ -88,7 +101,12 @@ export async function verifyStartSms(toE164: string): Promise<{ sid?: string }> 
   return { sid: data.sid };
 }
 
-export async function verifyCheckCode(toE164: string, code: string): Promise<boolean> {
+export async function verifyStartSms(toE164: string): Promise<{ sid?: string }> {
+  return verifyStart(toE164, "sms");
+}
+
+/** Check a Verify code for the same `to` used in {@link verifyStart} (E.164 or email). */
+export async function verifyCheckCode(to: string, code: string): Promise<boolean> {
   if (isMockIntegrations()) {
     const expected = process.env.MOCK_VERIFY_CODE ?? "123456";
     return code === expected;
@@ -98,7 +116,7 @@ export async function verifyCheckCode(toE164: string, code: string): Promise<boo
   const token = process.env.TWILIO_AUTH_TOKEN;
   if (!sid || !accountSid || !token) return false;
 
-  const body = new URLSearchParams({ To: toE164, Code: code });
+  const body = new URLSearchParams({ To: to, Code: code });
   const res = await fetch(
     `https://verify.twilio.com/v2/Services/${sid}/VerificationCheck`,
     {
@@ -149,7 +167,7 @@ export async function sendTestSms(opts: {
 
   const message = body;
 
-  if (isMockIntegrations()) {
+  if (isMockOutboundSms()) {
     console.info("[MOCK SMS to %s]\n%s", opts.toE164, message);
     return { sid: MOCK_SID };
   }
@@ -195,7 +213,7 @@ export async function sendTransactionalSms(
   body: string,
 ): Promise<{ sid?: string }> {
   const message = body.trim().slice(0, 1530);
-  if (isMockIntegrations()) {
+  if (isMockOutboundSms()) {
     console.info("[MOCK transactional SMS to %s]\n%s", toE164, message);
     return { sid: MOCK_SID };
   }

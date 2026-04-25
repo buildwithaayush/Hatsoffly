@@ -87,8 +87,6 @@ export async function POST(req: NextRequest) {
   const primary =
     business.locations.find((l) => l.isPrimary) ?? business.locations[0];
 
-  const isFirstActivationComplete = !business.activationCompletedAt;
-
   await prisma.$transaction(async (tx) => {
     await tx.business.update({
       where: { id: business.id },
@@ -124,30 +122,28 @@ export async function POST(req: NextRequest) {
     });
   });
 
-  if (isFirstActivationComplete) {
-    try {
-      const user = await prisma.user.findUnique({
-        where: { id: session.sub },
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: session.sub },
+    });
+    const preview = await prisma.previewLink.findFirst({
+      where: {
+        businessId: business.id,
+        expiresAt: { gt: new Date() },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    if (user && preview) {
+      await sendTestSms({
+        toE164: user.phoneE164,
+        firstName: firstNameFromFull(user.fullName),
+        businessName: business.name,
+        previewPathToken: preview.token,
+        voice: business.templateVoice,
       });
-      const preview = await prisma.previewLink.findFirst({
-        where: {
-          businessId: business.id,
-          expiresAt: { gt: new Date() },
-        },
-        orderBy: { createdAt: "desc" },
-      });
-      if (user && preview) {
-        await sendTestSms({
-          toE164: user.phoneE164,
-          firstName: firstNameFromFull(user.fullName),
-          businessName: business.name,
-          previewPathToken: preview.token,
-          voice: business.templateVoice,
-        });
-      }
-    } catch (e) {
-      console.error("[activation/complete] demo sms", e);
     }
+  } catch (e) {
+    console.error("[activation/complete] demo sms", e);
   }
 
   return jsonOk({

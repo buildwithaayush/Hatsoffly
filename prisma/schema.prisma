@@ -46,16 +46,33 @@ model User {
   phoneE164       String
   phoneLineType   String?
   phoneVerifiedAt DateTime?
+  emailVerifiedAt DateTime?
   authProvider    String    @default("email")
   googleSub       String?   @unique
   lastLoginAt     DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  roles           UserBusinessRole[]
-  businessesOwned Business[]         @relation("PrimaryContact")
+  roles             UserBusinessRole[]
+  businessesOwned   Business[]               @relation("PrimaryContact")
+  contactChallenges AccountContactChallenge[]
 
   @@index([phoneE164])
+}
+
+/// OTP challenge for changing email or phone (Twilio Verify).
+model AccountContactChallenge {
+  id          String   @id @default(uuid())
+  userId      String
+  kind        String
+  destination String
+  expiresAt   DateTime
+  attempts    Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Business {

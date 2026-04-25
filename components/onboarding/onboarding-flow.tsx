@@ -74,6 +74,7 @@ export function OnboardingFlow() {
   const [verifyFirstName, setVerifyFirstName] = useState("");
   const [code, setCode] = useState(["", "", "", "", "", ""]);
   const codeRefs = useRef<Array<HTMLInputElement | null>>([]);
+  const autoSubmittedCodeRef = useRef<string | null>(null);
   const placesContainerRef = useRef<HTMLDivElement>(null);
   const [resendSec, setResendSec] = useState(30);
 
@@ -397,6 +398,19 @@ export function OnboardingFlow() {
       setSubmitting(false);
     }
   }, [code, pendingToken]);
+
+  useEffect(() => {
+    if (step !== "verify" || !codeDone) {
+      autoSubmittedCodeRef.current = null;
+      return;
+    }
+    if (submitting) return;
+    const joined = code.join("");
+    if (joined.length !== 6) return;
+    if (autoSubmittedCodeRef.current === joined) return;
+    autoSubmittedCodeRef.current = joined;
+    void onVerify();
+  }, [step, codeDone, submitting, code, onVerify]);
 
   const onResend = async () => {
     if (resendSec > 0) return;
